@@ -138,4 +138,80 @@ class T4tApduEngineTest {
     val res = engine.processApdu(updateCmd, isEmulationEnabled = true, ndefMessageBytes = ndef, isReadOnly = true)
     assertArrayEquals(T4tApduEngine.SW_SECURITY_STATUS_NOT_SATISFIED, res.responseApdu)
   }
+
+  @Test
+  fun peerExchangeApdu_acceptsChunkedTransferWhenBridgeEnabledAndRejectsWhenDisabled() {
+    val engine = T4tApduEngine()
+    val hostNdef = NdefUriEncoder.encodeUriNdefMessage("https://instagram.com/host")
+    val hostPacket =
+      com.example.nfc.NdefBridgeCodec.encodePeerPacket(
+        com.example.nfc.PeerExchangePacket(
+          senderId = "host1",
+          label = "Host",
+          ndefBytes = hostNdef,
+        )
+      )
+    val peerNdef = NdefUriEncoder.encodeUriNdefMessage("https://tiktok.com/@peer")
+    val peerPacket =
+      com.example.nfc.PeerExchangePacket(
+        senderId = "peer1",
+        label = "Peer",
+        ndefBytes = peerNdef,
+      )
+    val peerBytes = com.example.nfc.NdefBridgeCodec.encodePeerPacket(peerPacket)
+    val split = peerBytes.size / 2
+    val chunk1 = peerBytes.copyOfRange(0, split)
+    val chunk2 = peerBytes.copyOfRange(split, peerBytes.size)
+
+    val apdu1 =
+      byteArrayOf(
+        T4tApduEngine.CLA_PROPRIETARY.toByte(),
+        T4tApduEngine.INS_PEER_EXCHANGE.toByte(),
+        0x01,
+        0x00,
+        chunk1.size.toByte(),
+      ) + chunk1
+    val apdu2 =
+      byteArrayOf(
+        T4tApduEngine.CLA_PROPRIETARY.toByte(),
+        T4tApduEngine.INS_PEER_EXCHANGE.toByte(),
+        0x00,
+        0x01,
+        chunk2.size.toByte(),
+      ) + chunk2
+
+    // Disabled -> rejected
+    val rejected =
+      engine.processApdu(
+        commandApdu = apdu1,
+        isEmulationEnabled = true,
+        ndefMessageBytes = hostNdef,
+        isBridgeEnabled = false,
+        localExchangePacket = hostPacket,
+      )
+    assertArrayEquals(T4tApduEngine.SW_CLA_NOT_SUPPORTED, rejected.responseApdu)
+
+    // Enabled -> two-chunk exchange succeeds and returns host reply packet
+    val res1 =
+      engine.processApdu(
+        commandApdu = apdu1,
+        isEmulationEnabled = true,
+        ndefMessageBytes = hostNdef,
+        isBridgeEnabled = true,
+        localExchangePacket = hostPacket,
+      )
+    assertArrayEquals(T4tApduEngine.SW_OK, res1.responseApdu)
+    assertNull(res1.completedPeerExchange)
+
+    val res2 =
+      engine.processApdu(
+        commandApdu = apdu2,
+        isEmulationEnabled = true,
+        ndefMessageBytes = hostNdef,
+        isBridgeEnabled = true,
+        localExchangePacket = hostPacket,
+      )
+    assertEquals(peerPacket, res2.completedPeerExchange)
+    assertArrayEquals(hostPacket + T4tApduEngine.SW_OK, res2.responseApdu)
+  }
 }

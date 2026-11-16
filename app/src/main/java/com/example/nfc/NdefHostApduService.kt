@@ -2,16 +2,19 @@ package com.example.nfc
 
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
+import com.example.data.AppSettingsStore
 import com.example.widget.WidgetSyncHelper
 
 class NdefHostApduService : HostApduService() {
 
   private val apduEngine = T4tApduEngine()
   private lateinit var activeCardStore: ActiveCardStore
+  private lateinit var settingsStore: AppSettingsStore
 
   override fun onCreate() {
     super.onCreate()
     activeCardStore = ActiveCardStore(applicationContext)
+    settingsStore = AppSettingsStore(applicationContext)
   }
 
   override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -23,21 +26,57 @@ class NdefHostApduService : HostApduService() {
     }
 
     val snapshot = activeCardStore.readSnapshot()
+    val settings = settingsStore.readSettings()
+    val bridgeEnabled = settings.multiRecordBridgeEnabled
+
+    val broadcastBytes =
+      if (bridgeEnabled && snapshot.ndefMessageBytes.isNotEmpty()) {
+        NdefBridgeCodec.buildMultiRecordNdef(
+          primaryNdefBytes = snapshot.ndefMessageBytes,
+          label = snapshot.label,
+          senderId = settings.bridgeDeviceId,
+        )
+      } else {
+        snapshot.ndefMessageBytes
+      }
+
+    val localPacketBytes =
+      if (bridgeEnabled && snapshot.hasPayload) {
+        NdefBridgeCodec.encodePeerPacket(
+          PeerExchangePacket(
+            senderId = settings.bridgeDeviceId,
+            label = snapshot.label,
+            ndefBytes = snapshot.ndefMessageBytes,
+          )
+        )
+      } else {
+        ByteArray(0)
+      }
+
     val outcome =
       apduEngine.processApdu(
         commandApdu = commandApdu,
         isEmulationEnabled = snapshot.isEmulating,
-        ndefMessageBytes = snapshot.ndefMessageBytes,
+        ndefMessageBytes = broadcastBytes,
         isReadOnly = snapshot.isReadOnly,
+        isBridgeEnabled = bridgeEnabled,
+        localExchangePacket = localPacketBytes,
       )
 
+    if (outcome.completedPeerExchange != null) {
+      val exchanged = outcome.completedPeerExchange
+      SilentPeerBridgeCoordinator.recordIncomingPeerCardAsync(
+        context = applicationContext,
+        rawNdefBytes = exchanged.ndefBytes,
+        suggestedLabel = exchanged.label,
+        senderId = exchanged.senderId,
+      )
+    }
+
     if (outcome.completedNdefWrite != null) {
-      val singleRecord = NdefMessageCodec.decodeRecords(outcome.completedNdefWrite).take(1)
-      val sanitizedBytes =
-        if (singleRecord.isNotEmpty()) NdefMessageCodec.encodeRecords(singleRecord)
-        else outcome.completedNdefWrite
+      val (unwrappedBytes, _) = NdefBridgeCodec.unwrapScannedMessage(outcome.completedNdefWrite)
       activeCardStore.writeRawNdefBytes(
-        ndefBytes = sanitizedBytes,
+        ndefBytes = unwrappedBytes,
         label = snapshot.label.ifBlank { "External Card" },
         isReadOnly = snapshot.isReadOnly,
       )

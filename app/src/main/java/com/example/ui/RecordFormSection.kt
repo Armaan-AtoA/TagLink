@@ -18,20 +18,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.AlternateEmail
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Sms
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -76,9 +86,8 @@ private val APP_PRESETS =
 
 private fun presetIcon(preset: TagPresetKind): ImageVector =
   when (preset) {
-    TagPresetKind.INSTAGRAM -> Icons.Outlined.CameraAlt
+    TagPresetKind.SOCIALS -> Icons.Outlined.Share
     TagPresetKind.LINK -> Icons.Outlined.Language
-    TagPresetKind.WHATSAPP -> Icons.AutoMirrored.Outlined.Chat
     TagPresetKind.CONTACT -> Icons.Outlined.Badge
     TagPresetKind.WIFI -> Icons.Outlined.Wifi
     TagPresetKind.PHONE -> Icons.Outlined.Phone
@@ -90,10 +99,27 @@ private fun presetIcon(preset: TagPresetKind): ImageVector =
     TagPresetKind.MIME -> Icons.Outlined.Code
   }
 
+private fun socialIcon(platform: SocialPlatform): ImageVector =
+  when (platform) {
+    SocialPlatform.INSTAGRAM -> Icons.Outlined.CameraAlt
+    SocialPlatform.WHATSAPP -> Icons.AutoMirrored.Outlined.Chat
+    SocialPlatform.TIKTOK -> Icons.Outlined.MusicNote
+    SocialPlatform.X -> Icons.Outlined.AlternateEmail
+    SocialPlatform.LINKEDIN -> Icons.Outlined.WorkOutline
+    SocialPlatform.YOUTUBE -> Icons.Outlined.PlayCircleOutline
+    SocialPlatform.THREADS -> Icons.Outlined.Forum
+    SocialPlatform.SNAPCHAT -> Icons.Outlined.Person
+    SocialPlatform.GITHUB -> Icons.Outlined.Code
+    SocialPlatform.FACEBOOK -> Icons.Outlined.Public
+    SocialPlatform.DISCORD -> Icons.Outlined.Group
+    SocialPlatform.TWITCH -> Icons.Outlined.LiveTv
+  }
+
 @Composable
 fun RecordComposerSection(
   state: TagUiState,
   onSelectPreset: (TagPresetKind) -> Unit,
+  onSelectSocialPlatform: (SocialPlatform) -> Unit,
   onChangeMakeType: () -> Unit,
   onOpenCopyTag: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
@@ -109,6 +135,13 @@ fun RecordComposerSection(
       ChoosePresetStep(
         onSelectPreset = onSelectPreset,
         onOpenCopyTag = onOpenCopyTag,
+      )
+    }
+
+    MakeStep.CHOOSE_SOCIAL -> {
+      ChooseSocialStep(
+        onSelectSocial = onSelectSocialPlatform,
+        onBackToTypes = onChangeMakeType,
       )
     }
 
@@ -222,6 +255,97 @@ private fun ChoosePresetStep(
 }
 
 @Composable
+private fun ChooseSocialStep(
+  onSelectSocial: (SocialPlatform) -> Unit,
+  onBackToTypes: () -> Unit,
+) {
+  val extendedColors = LocalTagExtendedColors.current
+  val rows = SocialPlatform.entries.chunked(2)
+
+  Column(
+    modifier = Modifier.fillMaxWidth().testTag("choose_social_step"),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        Text(
+          text = stringResource(R.string.make_social_step_title),
+          style = MaterialTheme.typography.titleLarge,
+          color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+          text = stringResource(R.string.make_social_step_subtitle),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      TextButton(
+        onClick = onBackToTypes,
+        modifier = Modifier.minimumInteractiveComponentSize().testTag("make_social_back_button"),
+      ) {
+        Text(text = stringResource(R.string.make_step2_change_category))
+      }
+    }
+
+    rows.forEach { pair ->
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        pair.forEach { platform ->
+          Surface(
+            onClick = { onSelectSocial(platform) },
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, extendedColors.border),
+            modifier =
+              Modifier.weight(1f)
+                .minimumInteractiveComponentSize()
+                .testTag("social_${platform.name.lowercase()}"),
+          ) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(12.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              Icon(
+                imageVector = socialIcon(platform),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+              )
+              Text(
+                text = platform.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+              Text(
+                text = platform.subtitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+        }
+        if (pair.size == 1) {
+          Spacer(modifier = Modifier.weight(1f))
+        }
+      }
+    }
+  }
+}
+
+@Composable
 private fun FillDetailsStep(
   state: TagUiState,
   onChangeMakeType: () -> Unit,
@@ -235,6 +359,13 @@ private fun FillDetailsStep(
 ) {
   val extendedColors = LocalTagExtendedColors.current
   val preset = state.form.selectedPreset
+  val isSocial = preset == TagPresetKind.SOCIALS
+  val headerIcon =
+    if (isSocial) socialIcon(state.form.selectedSocial) else presetIcon(preset)
+  val headerTitle =
+    if (isSocial) state.form.selectedSocial.title else preset.title
+  val headerSubtitle =
+    if (isSocial) state.form.selectedSocial.subtitle else preset.subtitle
 
   Column(
     modifier =
@@ -262,7 +393,7 @@ private fun FillDetailsStep(
           contentAlignment = Alignment.Center,
         ) {
           Icon(
-            imageVector = presetIcon(preset),
+            imageVector = headerIcon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
@@ -270,12 +401,12 @@ private fun FillDetailsStep(
         }
         Column {
           Text(
-            text = preset.title,
+            text = headerTitle,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
           )
           Text(
-            text = preset.subtitle,
+            text = headerSubtitle,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
@@ -286,7 +417,13 @@ private fun FillDetailsStep(
         onClick = onChangeMakeType,
         modifier = Modifier.minimumInteractiveComponentSize().testTag("make_change_type_button"),
       ) {
-        Text(text = stringResource(R.string.make_step2_change_type))
+        Text(
+          text =
+            stringResource(
+              if (isSocial) R.string.make_step2_change_social
+              else R.string.make_step2_change_type
+            )
+        )
       }
     }
 
@@ -443,43 +580,31 @@ private fun PresetFields(
 ) {
   val extendedColors = LocalTagExtendedColors.current
   when (form.selectedPreset) {
-    TagPresetKind.INSTAGRAM -> {
+    TagPresetKind.SOCIALS -> {
+      val platform = form.selectedSocial
       OutlinedTextField(
-        value = form.instagramHandle,
-        onValueChange = { v -> onUpdateForm { it.copy(instagramHandle = v) } },
-        label = { Text("Instagram username") },
-        placeholder = { Text("@username") },
+        value = form.socialHandleInput,
+        onValueChange = { v -> onUpdateForm { it.copy(socialHandleInput = v) } },
+        label = {
+          Text(
+            if (platform.isPhoneBased) "${platform.title} phone number"
+            else "${platform.title} username or link"
+          )
+        },
+        placeholder = { Text(platform.placeholder) },
         singleLine = true,
         textStyle = MonoBodyStyle,
+        keyboardOptions =
+          KeyboardOptions(
+            keyboardType = if (platform.isPhoneBased) KeyboardType.Phone else KeyboardType.Uri
+          ),
         shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth().testTag("instagram_handle_input"),
+        modifier = Modifier.fillMaxWidth().testTag("social_handle_input"),
       )
-      val clean = form.instagramHandle.trim().removePrefix("@")
-      if (clean.isNotBlank() && !clean.contains("://")) {
+      val previewUrl = platform.buildProfileUrl(form.socialHandleInput)
+      if (previewUrl.isNotBlank()) {
         Text(
-          text = "Link: https://instagram.com/$clean",
-          style = MonoBodyStyle,
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-    }
-
-    TagPresetKind.WHATSAPP -> {
-      OutlinedTextField(
-        value = form.whatsappPhone,
-        onValueChange = { v -> onUpdateForm { it.copy(whatsappPhone = v) } },
-        label = { Text("WhatsApp phone number") },
-        placeholder = { Text("+1 555 123 4567") },
-        singleLine = true,
-        textStyle = MonoBodyStyle,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth().testTag("whatsapp_phone_input"),
-      )
-      val digits = form.whatsappPhone.filter { it.isDigit() }
-      if (digits.length >= 6) {
-        Text(
-          text = "Link: https://wa.me/$digits",
+          text = "Link: $previewUrl",
           style = MonoBodyStyle,
           color = MaterialTheme.colorScheme.primary,
         )

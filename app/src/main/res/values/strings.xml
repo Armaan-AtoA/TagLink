@@ -14,7 +14,7 @@
     <string name="home_activate_title">Activate Tag</string>
     <string name="home_activate_subtitle">Broadcast your active tag or pick from saved tags</string>
     <string name="home_make_title">Make Tag</string>
-    <string name="home_make_subtitle">Choose Instagram, Link, Contact, Wi-Fi, and more</string>
+    <string name="home_make_subtitle">Choose Socials, Link, Contact, Wi-Fi, and more</string>
     <string name="home_copy_title">Copy Tag</string>
     <string name="home_copy_subtitle">Scan a physical NFC card or sticker to clone it</string>
 
@@ -36,8 +36,12 @@
     <string name="lock_writable_desc">Other NFC writer apps can overwrite this virtual tag</string>
 
     <string name="make_step1_title">What should this tag do?</string>
-    <string name="make_step1_subtitle">Pick a type first, then enter your details.</string>
+    <string name="make_step1_subtitle">Pick a category first, then follow the steps.</string>
+    <string name="make_social_step_title">Which social profile?</string>
+    <string name="make_social_step_subtitle">Pick the platform you want this tag to open.</string>
     <string name="make_step2_change_type">Change type</string>
+    <string name="make_step2_change_category">Back</string>
+    <string name="make_step2_change_social">Change platform</string>
     <string name="make_copy_instead">Or scan a physical NFC tag to copy</string>
     <string name="make_protection_title">Tag Protection</string>
     <string name="label_tag_name_input">Tag Name (optional)</string>
@@ -61,6 +65,15 @@
 
     <string name="section_saved_cards">Saved Tags</string>
     <string name="empty_saved_cards">No saved tags yet. Tap Make a Tag to create one.</string>
+    <string name="wallet_view_badge">Wallet Deck</string>
+    <string name="wallet_photo_set">Set Photo</string>
+    <string name="wallet_photo_change">Photo</string>
+    <string name="wallet_photo_remove">Remove</string>
+    <string name="wallet_use_card">Use Card</string>
+    <string name="wallet_tap_to_expand">Tap card to expand or activate</string>
+    <string name="msg_cover_updated">Card cover photo updated</string>
+    <string name="msg_cover_removed">Card cover photo removed</string>
+    <string name="msg_cover_failed">Could not load selected photo</string>
 
     <string name="qs_tile_label">NFC Tag</string>
     <string name="qs_tile_nfc_off">NFC off · Tap to open</string>
@@ -90,17 +103,19 @@
     <string name="settings_title">Settings</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_theme_label">Theme</string>
+    <string name="settings_saved_view_label">Saved Tags View</string>
+    <string name="settings_saved_view_hint">Simplified shows compact rows; Wallet stacks customizable card fronts</string>
     <string name="settings_section_tag">Tag Behavior</string>
     <string name="settings_default_lock_label">Default Tag Protection</string>
     <string name="settings_auto_activate_write">Auto-activate after saving tag</string>
     <string name="settings_auto_activate_select">Auto-activate when picking saved tag</string>
     <string name="settings_prefer_foreground">Prioritize TagLink while app is open</string>
     <string name="settings_stop_on_leave">Deactivate tag when leaving app</string>
-    <string name="settings_section_shortcuts">Shortcuts &amp; Guide</string>
+    <string name="settings_multi_record_mode">Multi-record tag mode</string>
+    <string name="settings_section_shortcuts">Shortcuts &amp; Hardware</string>
     <string name="settings_open_nfc">Android NFC Settings</string>
     <string name="settings_pin_widget">Pin Home Screen Widget</string>
     <string name="settings_add_qs_tile">Add Quick Settings Tile</string>
-    <string name="settings_replay_tutorial">Replay Interactive Tutorial</string>
 
     <string name="tutorial_skip">Skip</string>
     <string name="tutorial_back">Back</string>
@@ -109,8 +124,8 @@
     <string name="tutorial_tap_circle_hint">Tap the highlighted area or Next</string>
     <string name="tutorial_step1_title">Check Your NFC Status</string>
     <string name="tutorial_step1_body">Device NFC must be ON before activating or scanning tags. This top badge always shows whether NFC is ready.</string>
-    <string name="tutorial_step2_title">Make a Tag in 2 Simple Steps</string>
-    <string name="tutorial_step2_body">Tap Make Tag, pick what you want to share (like Instagram, Website, Wi-Fi, or Contact Card), then enter the info.</string>
+    <string name="tutorial_step2_title">Make a Tag in Simple Steps</string>
+    <string name="tutorial_step2_body">Tap Make Tag, choose Socials (Instagram, TikTok, X, WhatsApp, and more) or another tag type, then enter your details.</string>
     <string name="tutorial_step3_title">Copy a Physical NFC Tag</string>
     <string name="tutorial_step3_body">Have a real NFC card or sticker? Use Copy Tag to hold it against your phone and clone its tag into TagLink.</string>
     <string name="tutorial_step4_title">Activate &amp; Tap Any Phone</string>
@@ -125,11 +140,13 @@
     <string name="cd_copy_saved_link">Duplicate saved tag</string>
     <string name="cd_load_saved_link">Load tag</string>
     <string name="cd_nfc_settings">NFC settings</string>
+    <string name="cd_wallet_cover_photo">Customize card front photo</string>
+    <string name="cd_wallet_remove_photo">Remove custom card photo</string>
 
     <string name="error_nfc_off">Turn on NFC first</string>
     <string name="error_no_card_loaded">Write or select a tag first</string>
     <string name="error_payload_too_long">Exceeds 2048 B limit</string>
-    <string name="error_invalid_instagram">Enter an Instagram username or profile link</string>
+    <string name="error_invalid_social">Enter a valid username, handle, or profile link</string>
     <string name="error_invalid_whatsapp">Enter a valid phone number or WhatsApp link</string>
     <string name="error_invalid_url">Enter a valid web link (for example https://example.com)</string>
     <string name="error_empty_text">Enter text</string>

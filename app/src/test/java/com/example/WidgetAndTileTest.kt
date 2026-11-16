@@ -4,6 +4,8 @@ import android.app.Application
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
@@ -19,6 +21,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppSettings
 import com.example.data.AppSettingsStore
 import com.example.data.SavedLinkEntity
+import com.example.data.SavedTagViewMode
 import com.example.data.TagDatabase
 import com.example.data.TagRepository
 import com.example.data.ThemeMode
@@ -35,6 +38,9 @@ import com.example.ui.TagProgrammerViewModel
 import com.example.widget.TagPresetWidgetProvider
 import com.example.widget.TagToggleWidgetProvider
 import com.example.widget.WidgetPrefs
+import java.io.File
+import java.io.FileOutputStream
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -211,7 +217,37 @@ class WidgetAndTileTest {
   }
 
   @Test
-  fun `tutorial autostart guided make tag copy shortcuts settings and nfc guard flow`() {
+  fun `wallet card cover photo saves locally and removes cleanly`() = runBlocking {
+    val repo = TagRepository(context, TagDatabase.getInstance(context).tagDao(), store)
+    repo.programCard(
+      record = NdefRecordDraft.Url("https://instagram.com/wallet_test"),
+      label = "Wallet Test",
+      isReadOnly = true,
+    )
+    val savedCard = repo.savedLinks.first().first { it.label == "Wallet Test" }
+
+    val tempSource = File(context.cacheDir, "sample_cover_input.jpg")
+    val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    FileOutputStream(tempSource).use { fos ->
+      bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+    }
+    bitmap.recycle()
+
+    val updated = repo.updateCardCoverImage(savedCard.id, Uri.fromFile(tempSource))
+    assertTrue(updated)
+    val withCover = repo.savedLinks.first().first { it.id == savedCard.id }
+    assertNotNull(withCover.coverImagePath)
+    assertTrue(File(withCover.coverImagePath!!).exists())
+
+    val removed = repo.updateCardCoverImage(savedCard.id, null)
+    assertTrue(removed)
+    val cleared = repo.savedLinks.first().first { it.id == savedCard.id }
+    assertEquals(null, cleared.coverImagePath)
+    assertFalse(File(withCover.coverImagePath!!).exists())
+  }
+
+  @Test
+  fun `tutorial autostart 3step socials wallet mode settings and nfc guard flow`() {
     simulatedNfcStatus = NfcHardwareStatus.NFC_DISABLED
     val viewModel = ViewModelProvider(composeRule.activity)[TagProgrammerViewModel::class.java]
     viewModel.refreshState()
@@ -246,37 +282,41 @@ class WidgetAndTileTest {
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("tutorial_overlay").assertDoesNotExist()
 
-    // Pin Widget dialog from Shortcuts
-    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_shortcuts_card"))
-    composeRule.onNodeWithTag("pin_widget_prompt_button").performClick()
-    composeRule.onNodeWithTag("pin_toggle_widget_option").assertIsDisplayed()
-    composeRule.onNodeWithTag("pin_preset_widget_option").assertIsDisplayed()
-    composeRule.onNodeWithTag("pin_widget_cancel_button").performClick()
-    composeRule.waitForIdle()
-
-    // Quick Tile shortcut from Shortcuts works without crashing
-    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_shortcuts_card"))
-    composeRule.onNodeWithTag("pin_quick_tile_button").performClick()
-    composeRule.waitForIdle()
-
-    // Settings dark theme toggle
+    // Settings: dark theme toggle, default Simplified view -> switch to Wallet, verify Replay Tutorial removed
     composeRule.onNodeWithTag("app_settings_button").performClick()
     composeRule.waitForIdle()
-    composeRule.onNodeWithTag("theme_mode_dark").assertIsDisplayed()
+    composeRule.onNodeWithTag("settings_replay_tutorial_button").assertDoesNotExist()
+    composeRule.onNodeWithText("Replay Interactive Tutorial").assertDoesNotExist()
     composeRule.onNodeWithTag("theme_mode_dark").performClick()
+    assertEquals(SavedTagViewMode.SIMPLIFIED, viewModel.uiState.value.settings.savedTagViewMode)
+    composeRule.onNodeWithTag("tag_view_wallet").performScrollTo().performClick()
     composeRule.waitForIdle()
     assertEquals(ThemeMode.DARK, viewModel.uiState.value.settings.themeMode)
+    assertEquals(SavedTagViewMode.WALLET, viewModel.uiState.value.settings.savedTagViewMode)
+    assertTrue(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
+    composeRule.onNodeWithTag("setting_multi_record_bridge").performScrollTo().performClick()
+    composeRule.waitForIdle()
+    assertFalse(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
+    composeRule.onNodeWithTag("setting_multi_record_bridge").performClick()
+    composeRule.waitForIdle()
+    assertTrue(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
 
-    // Guided 2-step Make Tag: pick Instagram, then enter @username, save, verify NFC-off guard
+    // Guided 3-step Make Tag: Make Tag -> Socials -> Instagram -> @username -> Save Tag
     composeRule.onNodeWithTag("back_button").performClick()
     composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_make_tag_button"))
     composeRule.onNodeWithTag("home_make_tag_button").performClick()
-    composeRule.onNodeWithTag("preset_instagram").assertIsDisplayed()
+    composeRule.onNodeWithTag("preset_socials").assertIsDisplayed()
     composeRule.onNodeWithTag("preset_link").assertIsDisplayed()
-    composeRule.onNodeWithTag("preset_contact").assertIsDisplayed()
-    composeRule.onNodeWithTag("preset_instagram").performClick()
+    composeRule.onNodeWithTag("preset_socials").performClick()
 
-    composeRule.onNodeWithTag("instagram_handle_input").performTextInput("taglink_demo")
+    // Step 2: List of Socials
+    composeRule.onNodeWithTag("choose_social_step").assertIsDisplayed()
+    composeRule.onNodeWithTag("social_instagram").assertIsDisplayed()
+    composeRule.onNodeWithTag("social_tiktok").assertIsDisplayed()
+    composeRule.onNodeWithTag("social_instagram").performClick()
+
+    // Step 3: Details
+    composeRule.onNodeWithTag("social_handle_input").performTextInput("taglink_demo")
     composeRule.onNodeWithTag("write_card_button").performScrollTo().performClick()
     composeRule.waitUntil(3_000) {
       composeRule.onAllNodes(hasTestTag("emulation_toggle_button")).fetchSemanticsNodes().isNotEmpty()
@@ -288,6 +328,13 @@ class WidgetAndTileTest {
       "https://instagram.com/taglink_demo",
       (viewModel.uiState.value.activeRecord as NdefRecordDraft.Url).url,
     )
+
+    // Wallet view renders stacked rectangular cards + photo customize button under Saved Tags
+    composeRule.onNodeWithTag("activate_list").performScrollToNode(hasTestTag("wallet_card_stack"))
+    composeRule.onNodeWithTag("wallet_card_stack").assertIsDisplayed()
+    val savedId = viewModel.uiState.value.savedCards.first().id
+    composeRule.onNodeWithTag("wallet_card_$savedId").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("wallet_photo_button_$savedId").performScrollTo().assertIsDisplayed()
 
     // Copy Tag screen: shows NFC banner when NFC off and accepts physical scanned NDEF result
     composeRule.onNodeWithTag("back_button").performClick()
@@ -310,5 +357,70 @@ class WidgetAndTileTest {
       "https://copied.example",
       (viewModel.uiState.value.activeRecord as NdefRecordDraft.Url).url,
     )
+  }
+
+  @Test
+  fun `hce service broadcasts multi-record bridge by default and falls back to single record when off`() {
+    simulatedNfcStatus = NfcHardwareStatus.READY
+    store.writeRecords(
+      records = listOf(NdefRecordDraft.Url("https://instagram.com/taglink")),
+      label = "Instagram",
+      isReadOnly = true,
+    )
+    store.setEmulating(true)
+
+    val settingsStore = AppSettingsStore(context)
+    assertTrue(settingsStore.readSettings().multiRecordBridgeEnabled)
+
+    val service = org.robolectric.Robolectric.setupService(com.example.nfc.NdefHostApduService::class.java)
+    fun readNdefFromService(): List<NdefRecordDraft> {
+      val selectAid =
+        byteArrayOf(0x00, 0xA4.toByte(), 0x04, 0x00, 0x07) +
+          com.example.nfc.T4tApduEngine.NDEF_AID +
+          byteArrayOf(0x00)
+      service.processCommandApdu(selectAid, null)
+      val selectNdef = byteArrayOf(0x00, 0xA4.toByte(), 0x00, 0x0C, 0x02, 0xE1.toByte(), 0x04)
+      service.processCommandApdu(selectNdef, null)
+      val lenRes = service.processCommandApdu(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x00, 0x02), null)
+      val nlen = ((lenRes[0].toInt() and 0xFF) shl 8) or (lenRes[1].toInt() and 0xFF)
+      val payloadRes =
+        service.processCommandApdu(byteArrayOf(0x00, 0xB0.toByte(), 0x00, 0x02, nlen.toByte()), null)
+      val ndefBytes = payloadRes.copyOf(payloadRes.size - 2)
+      return NdefMessageCodec.decodeRecords(ndefBytes)
+    }
+
+    val multiRecords = readNdefFromService()
+    assertEquals(2, multiRecords.size)
+    assertTrue((multiRecords[0] as NdefRecordDraft.Url).url.startsWith("tapshare://exchange?"))
+    assertEquals("https://instagram.com/taglink", (multiRecords[1] as NdefRecordDraft.Url).url)
+
+    settingsStore.updateSettings { it.copy(multiRecordBridgeEnabled = false) }
+    val singleRecords = readNdefFromService()
+    assertEquals(1, singleRecords.size)
+    assertEquals("https://instagram.com/taglink", (singleRecords[0] as NdefRecordDraft.Url).url)
+  }
+
+  @Test
+  fun `silent peer bridge saves incoming peer card cleanly without altering active card`() = runBlocking {
+    simulatedNfcStatus = NfcHardwareStatus.READY
+    val ownRecord = NdefRecordDraft.Url("https://instagram.com/owner")
+    store.writeRecords(records = listOf(ownRecord), label = "Owner", isReadOnly = true)
+
+    val peerNdef = NdefMessageCodec.encodeRecords(listOf(NdefRecordDraft.Url("https://linkedin.com/in/peer_user")))
+    val saved =
+      com.example.nfc.SilentPeerBridgeCoordinator.savePeerCardInternal(
+        context = context,
+        rawNdefBytes = peerNdef,
+        suggestedLabel = "LinkedIn (@peer_user)",
+        senderId = "other-device-99",
+      )
+    assertTrue(saved)
+
+    val allCards = TagDatabase.getInstance(context).tagDao().observeSavedLinks().first()
+    val peerCard = allCards.firstOrNull { it.label == "LinkedIn (@peer_user)" }
+    assertNotNull(peerCard)
+    assertArrayEquals(peerNdef, peerCard!!.ndefBytes)
+    // Own active card remains unchanged
+    assertEquals("Owner", store.readSnapshot().label)
   }
 }

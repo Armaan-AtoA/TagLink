@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
             adapter.enableReaderMode(
               this@MainActivity,
               { tag ->
-                val result = NfcTagReaderHelper.readPhysicalTag(tag)
+                val result = NfcTagReaderHelper.readPhysicalTag(tag, this@MainActivity)
                 runOnUiThread { viewModel.onPhysicalTagScanned(result) }
               },
               flags,
@@ -142,7 +142,8 @@ class MainActivity : ComponentActivity() {
           onDismissPinWidget = viewModel::dismissPinWidgetDialog,
           onPinWidget = viewModel::pinWidget,
           onSelectMakePreset = viewModel::selectMakePreset,
-          onChangeMakeType = viewModel::backToChooseMakeType,
+          onSelectSocialPlatform = viewModel::selectSocialPlatform,
+          onChangeMakeType = viewModel::backToPreviousMakeStep,
           onUpdateForm = viewModel::updateForm,
           onCardLabelChanged = viewModel::onCardLabelChanged,
           onMakeReadOnlyChanged = viewModel::onMakeReadOnlyChanged,
@@ -158,6 +159,8 @@ class MainActivity : ComponentActivity() {
           onToggleEmulation = viewModel::toggleEmulation,
           onToggleReadOnly = viewModel::toggleReadOnly,
           onLoadSavedCard = viewModel::loadSavedCard,
+          onUpdateCardCoverPhoto = viewModel::updateCardCoverPhoto,
+          onRemoveCardCoverPhoto = viewModel::removeCardCoverPhoto,
           onDuplicateSavedCard = viewModel::duplicateSavedCard,
           onDeleteSavedCard = viewModel::deleteSavedCard,
           onUpdateSettings = viewModel::updateSettings,

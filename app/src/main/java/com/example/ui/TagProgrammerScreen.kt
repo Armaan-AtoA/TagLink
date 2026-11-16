@@ -1,6 +1,10 @@
 package com.example.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,8 +60,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -71,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.AppSettings
 import com.example.data.SavedLinkEntity
+import com.example.data.SavedTagViewMode
 import com.example.nfc.NfcHardwareStatus
 import com.example.ui.theme.LocalTagExtendedColors
 import com.example.ui.theme.MonoBodyStyle
@@ -88,6 +97,7 @@ fun TagProgrammerScreen(
   onDismissPinWidget: () -> Unit,
   onPinWidget: (WidgetType) -> Unit,
   onSelectMakePreset: (TagPresetKind) -> Unit,
+  onSelectSocialPlatform: (SocialPlatform) -> Unit,
   onChangeMakeType: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onCardLabelChanged: (String) -> Unit,
@@ -104,6 +114,8 @@ fun TagProgrammerScreen(
   onToggleEmulation: (Boolean) -> Unit,
   onToggleReadOnly: (Boolean) -> Unit,
   onLoadSavedCard: (SavedLinkEntity) -> Unit,
+  onUpdateCardCoverPhoto: (Long, Uri?) -> Unit,
+  onRemoveCardCoverPhoto: (Long) -> Unit,
   onDuplicateSavedCard: (SavedLinkEntity) -> Unit,
   onDeleteSavedCard: (Long) -> Unit,
   onUpdateSettings: ((AppSettings) -> AppSettings) -> Unit,
@@ -114,6 +126,18 @@ fun TagProgrammerScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val extendedColors = LocalTagExtendedColors.current
   val tutorialBounds = remember { mutableStateMapOf<TutorialTarget, Rect>() }
+  var pendingPhotoCardId by rememberSaveable { mutableStateOf<Long?>(null) }
+  val photoPickerLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.PickVisualMedia(),
+      onResult = { uri ->
+        val cardId = pendingPhotoCardId
+        pendingPhotoCardId = null
+        if (uri != null && cardId != null) {
+          onUpdateCardCoverPhoto(cardId, uri)
+        }
+      },
+    )
 
   LaunchedEffect(state.statusMessage) {
     val msg = state.statusMessage
@@ -130,7 +154,13 @@ fun TagProgrammerScreen(
   }
 
   if (state.currentScreen != AppScreen.HOME && !state.showTutorial) {
-    BackHandler { onNavigate(AppScreen.HOME) }
+    BackHandler {
+      if (state.currentScreen == AppScreen.MAKE_TAG && state.form.makeStep != MakeStep.CHOOSE_TYPE) {
+        onChangeMakeType()
+      } else {
+        onNavigate(AppScreen.HOME)
+      }
+    }
   }
 
   Box(modifier = Modifier.fillMaxSize()) {
@@ -188,6 +218,13 @@ fun TagProgrammerScreen(
               onToggleReadOnly = onToggleReadOnly,
               onClearCard = onClearCard,
               onLoadSavedCard = onLoadSavedCard,
+              onPickCardPhoto = { card ->
+                pendingPhotoCardId = card.id
+                photoPickerLauncher.launch(
+                  PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+              },
+              onRemoveCardPhoto = { card -> onRemoveCardCoverPhoto(card.id) },
               onDuplicateSavedCard = onDuplicateSavedCard,
               onDeleteSavedCard = onDeleteSavedCard,
               onOpenMakeTag = { onNavigate(AppScreen.MAKE_TAG) },
@@ -206,6 +243,7 @@ fun TagProgrammerScreen(
                 RecordComposerSection(
                   state = state,
                   onSelectPreset = onSelectMakePreset,
+                  onSelectSocialPlatform = onSelectSocialPlatform,
                   onChangeMakeType = onChangeMakeType,
                   onOpenCopyTag = { onNavigate(AppScreen.COPY_TAG) },
                   onUpdateForm = onUpdateForm,
@@ -239,7 +277,6 @@ fun TagProgrammerScreen(
               onOpenNfcSettings = onOpenNfcSettings,
               onOpenPinWidget = onOpenPinWidget,
               onRequestAddQuickTile = onRequestAddQuickTile,
-              onReplayTutorial = onOpenTutorial,
               modifier = contentModifier,
             )
           }
@@ -692,6 +729,8 @@ private fun ActivateTagScreen(
   onToggleReadOnly: (Boolean) -> Unit,
   onClearCard: () -> Unit,
   onLoadSavedCard: (SavedLinkEntity) -> Unit,
+  onPickCardPhoto: (SavedLinkEntity) -> Unit,
+  onRemoveCardPhoto: (SavedLinkEntity) -> Unit,
   onDuplicateSavedCard: (SavedLinkEntity) -> Unit,
   onDeleteSavedCard: (Long) -> Unit,
   onOpenMakeTag: () -> Unit,
@@ -701,7 +740,7 @@ private fun ActivateTagScreen(
   val extendedColors = LocalTagExtendedColors.current
 
   LazyColumn(
-    modifier = modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize().testTag("activate_list"),
     contentPadding = PaddingValues(16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
@@ -735,6 +774,21 @@ private fun ActivateTagScreen(
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onBackground,
         )
+        if (state.settings.savedTagViewMode == SavedTagViewMode.WALLET) {
+          Box(
+            modifier =
+              Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(1.dp, extendedColors.border)
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .testTag("wallet_mode_indicator"),
+          ) {
+            Text(
+              text = stringResource(R.string.wallet_view_badge),
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.primary,
+            )
+          }
+        }
       }
     }
 
@@ -762,6 +816,18 @@ private fun ActivateTagScreen(
             Text(text = stringResource(R.string.action_go_make_tag))
           }
         }
+      }
+    } else if (state.settings.savedTagViewMode == SavedTagViewMode.WALLET) {
+      item {
+        WalletCardStack(
+          cards = state.savedCards,
+          activeNdefBytes = state.activeNdefBytes,
+          onLoadCard = onLoadSavedCard,
+          onPickPhoto = onPickCardPhoto,
+          onRemovePhoto = onRemoveCardPhoto,
+          onDuplicateCard = onDuplicateSavedCard,
+          onDeleteCard = onDeleteSavedCard,
+        )
       }
     } else {
       items(state.savedCards, key = { it.id }) { card ->

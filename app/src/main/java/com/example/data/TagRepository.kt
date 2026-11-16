@@ -1,6 +1,7 @@
 package com.example.data
 
 import android.content.Context
+import android.net.Uri
 import com.example.nfc.ActiveCardSnapshot
 import com.example.nfc.ActiveCardStore
 import com.example.nfc.NdefMessageCodec
@@ -126,7 +127,27 @@ class TagRepository(
     return snapshot
   }
 
-  suspend fun deleteSavedLink(id: Long) = tagDao.deleteSavedLinkById(id)
+  suspend fun updateCardCoverImage(cardId: Long, sourceUri: Uri?): Boolean {
+    val existing = tagDao.getSavedLinkById(cardId) ?: return false
+    if (sourceUri == null) {
+      CardCoverImageHelper.deleteCoverFile(existing.coverImagePath)
+      tagDao.updateCoverImagePath(cardId, null)
+      return true
+    }
+    val savedPath = CardCoverImageHelper.saveCoverFromUri(appContext, cardId, sourceUri)
+      ?: return false
+    if (existing.coverImagePath != savedPath) {
+      CardCoverImageHelper.deleteCoverFile(existing.coverImagePath)
+    }
+    tagDao.updateCoverImagePath(cardId, savedPath)
+    return true
+  }
+
+  suspend fun deleteSavedLink(id: Long) {
+    val existing = tagDao.getSavedLinkById(id)
+    CardCoverImageHelper.deleteCoverFile(existing?.coverImagePath)
+    tagDao.deleteSavedLinkById(id)
+  }
 
   private fun deriveDefaultLabel(record: NdefRecordDraft): String =
     when (record) {
@@ -139,10 +160,16 @@ class TagRepository(
         when {
           host.contains("instagram.com") -> "Instagram"
           host.contains("wa.me") || host.contains("whatsapp.com") -> "WhatsApp"
+          host.contains("tiktok.com") -> "TikTok"
           host.contains("linkedin.com") -> "LinkedIn"
           host.contains("x.com") || host.contains("twitter.com") -> "X"
           host.contains("github.com") -> "GitHub"
           host.contains("youtube.com") || host.contains("youtu.be") -> "YouTube"
+          host.contains("threads.net") -> "Threads"
+          host.contains("snapchat.com") -> "Snapchat"
+          host.contains("facebook.com") -> "Facebook"
+          host.contains("discord.gg") || host.contains("discord.com") -> "Discord"
+          host.contains("twitch.tv") -> "Twitch"
           host.isNotBlank() -> host
           else -> "URL Card"
         }

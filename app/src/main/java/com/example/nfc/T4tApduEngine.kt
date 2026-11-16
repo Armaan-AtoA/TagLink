@@ -1,5 +1,7 @@
 package com.example.nfc
 
+import java.io.ByteArrayOutputStream
+
 class T4tApduEngine {
 
   enum class SelectedFile {
@@ -12,16 +14,19 @@ class T4tApduEngine {
     val responseApdu: ByteArray,
     val completedNdefRead: Boolean = false,
     val completedNdefWrite: ByteArray? = null,
+    val completedPeerExchange: PeerExchangePacket? = null,
     val rejectedBecauseStandby: Boolean = false,
   )
 
   private var selectedFile: SelectedFile = SelectedFile.NONE
   private var writeBuffer = ByteArray(2 + NdefMessageCodec.MAX_NDEF_BYTES)
   private var writeSessionDirty = false
+  private val peerExchangeBuffer = ByteArrayOutputStream()
 
   fun reset() {
     selectedFile = SelectedFile.NONE
     writeSessionDirty = false
+    peerExchangeBuffer.reset()
   }
 
   fun processApdu(
@@ -29,6 +34,8 @@ class T4tApduEngine {
     isEmulationEnabled: Boolean,
     ndefMessageBytes: ByteArray,
     isReadOnly: Boolean = true,
+    isBridgeEnabled: Boolean = false,
+    localExchangePacket: ByteArray = ByteArray(0),
   ): ApduOutcome {
     if (commandApdu.size < 4) {
       return ApduOutcome(SW_WRONG_LENGTH)
@@ -38,6 +45,23 @@ class T4tApduEngine {
     val ins = commandApdu[1].toInt() and 0xFF
     val p1 = commandApdu[2].toInt() and 0xFF
     val p2 = commandApdu[3].toInt() and 0xFF
+
+    if (cla == CLA_PROPRIETARY) {
+      if (!isBridgeEnabled) {
+        return ApduOutcome(SW_CLA_NOT_SUPPORTED)
+      }
+      return when (ins) {
+        INS_PEER_EXCHANGE ->
+          handlePeerExchange(
+            apdu = commandApdu,
+            p1 = p1,
+            p2 = p2,
+            isEmulationEnabled = isEmulationEnabled,
+            localExchangePacket = localExchangePacket,
+          )
+        else -> ApduOutcome(SW_INS_NOT_SUPPORTED)
+      }
+    }
 
     if (cla != 0x00) {
       return ApduOutcome(SW_CLA_NOT_SUPPORTED)
@@ -49,6 +73,55 @@ class T4tApduEngine {
       INS_UPDATE_BINARY -> handleUpdateBinary(commandApdu, p1, p2, isEmulationEnabled, ndefMessageBytes, isReadOnly)
       else -> ApduOutcome(SW_INS_NOT_SUPPORTED)
     }
+  }
+
+  private fun handlePeerExchange(
+    apdu: ByteArray,
+    p1: Int,
+    p2: Int,
+    isEmulationEnabled: Boolean,
+    localExchangePacket: ByteArray,
+  ): ApduOutcome {
+    if (!isEmulationEnabled) {
+      peerExchangeBuffer.reset()
+      return ApduOutcome(SW_CONDITIONS_NOT_SATISFIED, rejectedBecauseStandby = true)
+    }
+    if (p1 != 0x00 && p1 != 0x01) {
+      return ApduOutcome(SW_WRONG_P1_P2)
+    }
+    if (apdu.size < 5) {
+      return ApduOutcome(SW_WRONG_LENGTH)
+    }
+    val lc = apdu[4].toInt() and 0xFF
+    if (apdu.size < 5 + lc) {
+      return ApduOutcome(SW_WRONG_LENGTH)
+    }
+
+    if (p2 == 0x00) {
+      peerExchangeBuffer.reset()
+    }
+    if (peerExchangeBuffer.size() + lc > MAX_PEER_EXCHANGE_BYTES) {
+      peerExchangeBuffer.reset()
+      return ApduOutcome(SW_WRONG_LENGTH)
+    }
+    if (lc > 0) {
+      peerExchangeBuffer.write(apdu, 5, lc)
+    }
+
+    if (p1 == 0x01) {
+      return ApduOutcome(SW_OK)
+    }
+
+    val rawPacket = peerExchangeBuffer.toByteArray()
+    peerExchangeBuffer.reset()
+    val decoded = NdefBridgeCodec.decodePeerPacket(rawPacket) ?: return ApduOutcome(SW_WRONG_DATA)
+    val response =
+      if (localExchangePacket.isNotEmpty() && localExchangePacket.size <= 240) {
+        localExchangePacket + SW_OK
+      } else {
+        SW_OK
+      }
+    return ApduOutcome(responseApdu = response, completedPeerExchange = decoded)
   }
 
   private fun handleSelect(
@@ -214,6 +287,10 @@ class T4tApduEngine {
   }
 
   companion object {
+    const val CLA_PROPRIETARY = 0x80
+    const val INS_PEER_EXCHANGE = 0xE2
+    private const val MAX_PEER_EXCHANGE_BYTES = NdefMessageCodec.MAX_NDEF_BYTES + 256
+
     private const val INS_SELECT = 0xA4
     private const val INS_READ_BINARY = 0xB0
     private const val INS_UPDATE_BINARY = 0xD6
@@ -249,6 +326,7 @@ class T4tApduEngine {
     val SW_SECURITY_STATUS_NOT_SATISFIED = byteArrayOf(0x69, 0x82.toByte())
     val SW_CONDITIONS_NOT_SATISFIED = byteArrayOf(0x69, 0x85.toByte())
     val SW_COMMAND_NOT_ALLOWED = byteArrayOf(0x69, 0x86.toByte())
+    val SW_WRONG_DATA = byteArrayOf(0x6A, 0x80.toByte())
     val SW_FILE_NOT_FOUND = byteArrayOf(0x6A, 0x82.toByte())
     val SW_WRONG_P1_P2 = byteArrayOf(0x6A, 0x86.toByte())
     val SW_INS_NOT_SUPPORTED = byteArrayOf(0x6D, 0x00)

@@ -1,5 +1,6 @@
 package com.example.nfc
 
+import android.content.Context
 import android.nfc.NdefMessage
 import android.nfc.Tag
 import android.nfc.tech.Ndef
@@ -44,27 +45,40 @@ enum class TagScanError {
 
 object NfcTagReaderHelper {
 
-  fun readPhysicalTag(tag: Tag): ScannedTagResult {
+  fun readPhysicalTag(tag: Tag, context: Context? = null): ScannedTagResult {
     val ndef = Ndef.get(tag) ?: return ScannedTagResult.Failure(TagScanError.NOT_NDEF_FORMATTED)
-    return try {
-      ndef.connect()
-      val message: NdefMessage? = ndef.ndefMessage ?: ndef.cachedNdefMessage
-      val isReadOnly = !ndef.isWritable
-      if (message == null) {
-        ScannedTagResult.Failure(TagScanError.EMPTY_TAG)
-      } else {
-        parseScannedNdefBytes(message.toByteArray(), isReadOnly = isReadOnly)
+    var rawBytesForBridge: ByteArray? = null
+    val result =
+      try {
+        ndef.connect()
+        val message: NdefMessage? = ndef.ndefMessage ?: ndef.cachedNdefMessage
+        val isReadOnly = !ndef.isWritable
+        if (message == null) {
+          ScannedTagResult.Failure(TagScanError.EMPTY_TAG)
+        } else {
+          rawBytesForBridge = message.toByteArray()
+          parseScannedNdefBytes(rawBytesForBridge, isReadOnly = isReadOnly)
+        }
+      } catch (_: Exception) {
+        val cached = ndef.cachedNdefMessage
+        if (cached != null) {
+          rawBytesForBridge = cached.toByteArray()
+          parseScannedNdefBytes(rawBytesForBridge, isReadOnly = !ndef.isWritable)
+        } else {
+          ScannedTagResult.Failure(TagScanError.READ_FAILED)
+        }
+      } finally {
+        runCatching { ndef.close() }
       }
-    } catch (_: Exception) {
-      val cached = ndef.cachedNdefMessage
-      if (cached != null) {
-        parseScannedNdefBytes(cached.toByteArray(), isReadOnly = !ndef.isWritable)
-      } else {
-        ScannedTagResult.Failure(TagScanError.READ_FAILED)
-      }
-    } finally {
-      runCatching { ndef.close() }
+
+    if (context != null && rawBytesForBridge != null) {
+      SilentPeerBridgeCoordinator.replyOverIsoDepIfBridge(
+        context = context,
+        tag = tag,
+        rawNdefBytes = rawBytesForBridge,
+      )
     }
+    return result
   }
 
   fun parseScannedNdefBytes(
@@ -74,14 +88,9 @@ object NfcTagReaderHelper {
     if (rawBytes.isEmpty()) {
       return ScannedTagResult.Failure(TagScanError.EMPTY_TAG)
     }
-    val decoded = NdefMessageCodec.decodeRecords(rawBytes)
+    val (clampedBytes, embeddedLabel) = NdefBridgeCodec.unwrapScannedMessage(rawBytes)
+    val decoded = NdefMessageCodec.decodeRecords(clampedBytes)
     val singleRecord = decoded.firstOrNull()
-    val clampedBytes =
-      if (singleRecord != null) {
-        NdefMessageCodec.encodeRecords(listOf(singleRecord))
-      } else {
-        rawBytes
-      }
 
     if (clampedBytes.size > NdefMessageCodec.MAX_NDEF_BYTES) {
       return ScannedTagResult.Failure(TagScanError.PAYLOAD_TOO_LARGE)
@@ -95,25 +104,26 @@ object NfcTagReaderHelper {
       }
 
     val suggestedLabel =
-      when (singleRecord) {
-        is NdefRecordDraft.Url -> {
-          val host =
-            singleRecord.url.substringAfter("://", singleRecord.url)
-              .substringBefore('/')
-              .removePrefix("www.")
-          host.ifBlank { "Copied Link" }
+      embeddedLabel?.takeIf { it.isNotBlank() }
+        ?: when (singleRecord) {
+          is NdefRecordDraft.Url -> {
+            val host =
+              singleRecord.url.substringAfter("://", singleRecord.url)
+                .substringBefore('/')
+                .removePrefix("www.")
+            host.ifBlank { "Copied Link" }
+          }
+          is NdefRecordDraft.Text -> "Copied Text"
+          is NdefRecordDraft.Contact -> singleRecord.fullName.ifBlank { "Copied Contact" }
+          is NdefRecordDraft.Wifi -> singleRecord.ssid.ifBlank { "Copied Wi-Fi" }
+          is NdefRecordDraft.Email -> singleRecord.address.ifBlank { "Copied Email" }
+          is NdefRecordDraft.Phone -> singleRecord.number.ifBlank { "Copied Phone" }
+          is NdefRecordDraft.Sms -> singleRecord.number.ifBlank { "Copied SMS" }
+          is NdefRecordDraft.Geo -> singleRecord.label.ifBlank { "Copied Location" }
+          is NdefRecordDraft.AppLaunch -> singleRecord.packageName.ifBlank { "Copied App" }
+          is NdefRecordDraft.CustomMime -> singleRecord.mimeType.ifBlank { "Copied Tag" }
+          null -> "Copied Tag"
         }
-        is NdefRecordDraft.Text -> "Copied Text"
-        is NdefRecordDraft.Contact -> singleRecord.fullName.ifBlank { "Copied Contact" }
-        is NdefRecordDraft.Wifi -> singleRecord.ssid.ifBlank { "Copied Wi-Fi" }
-        is NdefRecordDraft.Email -> singleRecord.address.ifBlank { "Copied Email" }
-        is NdefRecordDraft.Phone -> singleRecord.number.ifBlank { "Copied Phone" }
-        is NdefRecordDraft.Sms -> singleRecord.number.ifBlank { "Copied SMS" }
-        is NdefRecordDraft.Geo -> singleRecord.label.ifBlank { "Copied Location" }
-        is NdefRecordDraft.AppLaunch -> singleRecord.packageName.ifBlank { "Copied App" }
-        is NdefRecordDraft.CustomMime -> singleRecord.mimeType.ifBlank { "Copied Tag" }
-        null -> "Copied Tag"
-      }
 
     return ScannedTagResult.Success(
       ndefBytes = clampedBytes,

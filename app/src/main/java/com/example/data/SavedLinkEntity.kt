@@ -13,6 +13,7 @@ data class SavedLinkEntity(
   val ndefByteSize: Int,
   val isReadOnly: Boolean,
   val lastProgrammedAt: Long,
+  val coverImagePath: String? = null,
 ) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
@@ -24,7 +25,8 @@ data class SavedLinkEntity(
       ndefBytes.contentEquals(other.ndefBytes) &&
       ndefByteSize == other.ndefByteSize &&
       isReadOnly == other.isReadOnly &&
-      lastProgrammedAt == other.lastProgrammedAt
+      lastProgrammedAt == other.lastProgrammedAt &&
+      coverImagePath == other.coverImagePath
   }
 
   override fun hashCode(): Int {
@@ -36,6 +38,7 @@ data class SavedLinkEntity(
     result = 31 * result + ndefByteSize
     result = 31 * result + isReadOnly.hashCode()
     result = 31 * result + lastProgrammedAt.hashCode()
+    result = 31 * result + (coverImagePath?.hashCode() ?: 0)
     return result
   }
 }

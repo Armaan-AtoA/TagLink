@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -44,6 +45,7 @@ enum class AppScreen {
 
 enum class MakeStep {
   CHOOSE_TYPE,
+  CHOOSE_SOCIAL,
   FILL_DETAILS,
 }
 
@@ -52,9 +54,8 @@ enum class TagPresetKind(
   val subtitle: String,
   val recordType: NdefRecordType,
 ) {
-  INSTAGRAM("Instagram", "@username profile", NdefRecordType.URL),
+  SOCIALS("Socials", "Instagram, TikTok, X & more", NdefRecordType.URL),
   LINK("Website / Link", "Any custom URL", NdefRecordType.URL),
-  WHATSAPP("WhatsApp", "Direct chat link", NdefRecordType.URL),
   CONTACT("Contact Card", "Name, phone & email", NdefRecordType.CONTACT),
   WIFI("Wi-Fi", "Instant network join", NdefRecordType.WIFI),
   PHONE("Phone Call", "Dial a phone number", NdefRecordType.PHONE),
@@ -66,12 +67,52 @@ enum class TagPresetKind(
   MIME("Custom Data", "Raw MIME payload", NdefRecordType.MIME),
 }
 
+enum class SocialPlatform(
+  val title: String,
+  val subtitle: String,
+  val urlPrefix: String,
+  val placeholder: String,
+  val isPhoneBased: Boolean = false,
+) {
+  INSTAGRAM("Instagram", "@username profile", "https://instagram.com/", "@username"),
+  WHATSAPP("WhatsApp", "Direct chat number", "https://wa.me/", "+1 555 123 4567", isPhoneBased = true),
+  TIKTOK("TikTok", "@username profile", "https://tiktok.com/@", "@username"),
+  X("X / Twitter", "@handle profile", "https://x.com/", "@handle"),
+  LINKEDIN("LinkedIn", "Profile handle", "https://linkedin.com/in/", "your-name"),
+  YOUTUBE("YouTube", "@channel page", "https://youtube.com/@", "@channel"),
+  THREADS("Threads", "@username profile", "https://threads.net/@", "@username"),
+  SNAPCHAT("Snapchat", "Snap username", "https://snapchat.com/add/", "username"),
+  GITHUB("GitHub", "Developer profile", "https://github.com/", "username"),
+  FACEBOOK("Facebook", "Profile or page", "https://facebook.com/", "username"),
+  DISCORD("Discord", "Server invite", "https://discord.gg/", "invite-code"),
+  TWITCH("Twitch", "Channel link", "https://twitch.tv/", "channel");
+
+  fun buildProfileUrl(rawInput: String): String {
+    val raw = rawInput.trim()
+    if (raw.isBlank()) return ""
+    if (raw.startsWith("http://", true) || raw.startsWith("https://", true)) {
+      return raw
+    }
+    if (isPhoneBased) {
+      if (raw.contains("wa.me/", true)) return NdefUriEncoder.normalizeUri(raw)
+      val digits = raw.filter { it.isDigit() }
+      return if (digits.length >= 6) "https://wa.me/$digits" else ""
+    }
+    val hostToken = urlPrefix.substringAfter("://").substringBefore('/')
+    if (raw.contains(hostToken, true)) {
+      return NdefUriEncoder.normalizeUri(raw)
+    }
+    val cleanHandle = raw.removePrefix("@").trimStart('/')
+    return if (cleanHandle.isBlank()) "" else "$urlPrefix$cleanHandle"
+  }
+}
+
 data class RecordFormState(
   val makeStep: MakeStep = MakeStep.CHOOSE_TYPE,
   val selectedPreset: TagPresetKind = TagPresetKind.LINK,
+  val selectedSocial: SocialPlatform = SocialPlatform.INSTAGRAM,
   val selectedType: NdefRecordType = NdefRecordType.URL,
-  val instagramHandle: String = "",
-  val whatsappPhone: String = "",
+  val socialHandleInput: String = "",
   val urlInput: String = "",
   val textInput: String = "",
   val textLang: String = "en",
@@ -350,10 +391,13 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
   fun selectMakePreset(preset: TagPresetKind) {
     localState.update { state ->
+      val nextStep =
+        if (preset == TagPresetKind.SOCIALS) MakeStep.CHOOSE_SOCIAL
+        else MakeStep.FILL_DETAILS
       state.copy(
         form =
           RecordFormState(
-            makeStep = MakeStep.FILL_DETAILS,
+            makeStep = nextStep,
             selectedPreset = preset,
             selectedType = preset.recordType,
           ),
@@ -363,10 +407,34 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  fun backToChooseMakeType() {
+  fun selectSocialPlatform(platform: SocialPlatform) {
     localState.update { state ->
       state.copy(
-        form = state.form.copy(makeStep = MakeStep.CHOOSE_TYPE),
+        form =
+          RecordFormState(
+            makeStep = MakeStep.FILL_DETAILS,
+            selectedPreset = TagPresetKind.SOCIALS,
+            selectedSocial = platform,
+            selectedType = NdefRecordType.URL,
+          ),
+        cardLabelDraft = "",
+        inputError = null,
+      )
+    }
+  }
+
+  fun backToPreviousMakeStep() {
+    localState.update { state ->
+      val nextStep =
+        when (state.form.makeStep) {
+          MakeStep.FILL_DETAILS ->
+            if (state.form.selectedPreset == TagPresetKind.SOCIALS) MakeStep.CHOOSE_SOCIAL
+            else MakeStep.CHOOSE_TYPE
+          MakeStep.CHOOSE_SOCIAL -> MakeStep.CHOOSE_TYPE
+          MakeStep.CHOOSE_TYPE -> MakeStep.CHOOSE_TYPE
+        }
+      state.copy(
+        form = state.form.copy(makeStep = nextStep),
         inputError = null,
       )
     }
@@ -391,6 +459,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           RecordFormState(
             makeStep = it.form.makeStep,
             selectedPreset = it.form.selectedPreset,
+            selectedSocial = it.form.selectedSocial,
             selectedType = it.form.selectedType,
           ),
         cardLabelDraft = "",
@@ -593,6 +662,28 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  fun updateCardCoverPhoto(cardId: Long, uri: Uri?) {
+    if (uri == null) return
+    val app = getApplication<Application>()
+    viewModelScope.launch {
+      val updated = repository.updateCardCoverImage(cardId, uri)
+      localState.update {
+        it.copy(
+          statusMessage =
+            app.getString(if (updated) R.string.msg_cover_updated else R.string.msg_cover_failed)
+        )
+      }
+    }
+  }
+
+  fun removeCardCoverPhoto(cardId: Long) {
+    val app = getApplication<Application>()
+    viewModelScope.launch {
+      repository.updateCardCoverImage(cardId, null)
+      localState.update { it.copy(statusMessage = app.getString(R.string.msg_cover_removed)) }
+    }
+  }
+
   fun deleteSavedCard(id: Long) {
     viewModelScope.launch { repository.deleteSavedLink(id) }
   }
@@ -698,12 +789,16 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
   private fun deriveFriendlyLabel(form: RecordFormState, record: NdefRecordDraft): String =
     when (form.selectedPreset) {
-      TagPresetKind.INSTAGRAM -> {
-        val handle =
-          form.instagramHandle.trim().removePrefix("@").substringAfter("instagram.com/").substringBefore('/')
-        if (handle.isNotBlank()) "Instagram (@$handle)" else "Instagram"
+      TagPresetKind.SOCIALS -> {
+        val platform = form.selectedSocial
+        if (platform.isPhoneBased) {
+          platform.title
+        } else {
+          val handle =
+            form.socialHandleInput.trim().removePrefix("@").substringAfterLast('/').take(24)
+          if (handle.isNotBlank()) "${platform.title} (@$handle)" else platform.title
+        }
       }
-      TagPresetKind.WHATSAPP -> "WhatsApp"
       else -> when (record) {
         is NdefRecordDraft.Url -> ""
         is NdefRecordDraft.Text -> "Text Note"
@@ -722,28 +817,49 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     when (draft) {
       is NdefRecordDraft.Url -> {
         val url = draft.url
-        when {
-          url.contains("instagram.com/", ignoreCase = true) ->
-            RecordFormState(
-              makeStep = MakeStep.FILL_DETAILS,
-              selectedPreset = TagPresetKind.INSTAGRAM,
-              selectedType = NdefRecordType.URL,
-              instagramHandle = url.substringAfter("instagram.com/").trim('/'),
-            )
-          url.contains("wa.me/", ignoreCase = true) ->
-            RecordFormState(
-              makeStep = MakeStep.FILL_DETAILS,
-              selectedPreset = TagPresetKind.WHATSAPP,
-              selectedType = NdefRecordType.URL,
-              whatsappPhone = url.substringAfter("wa.me/").trim('/'),
-            )
-          else ->
-            RecordFormState(
-              makeStep = MakeStep.FILL_DETAILS,
-              selectedPreset = TagPresetKind.LINK,
-              selectedType = NdefRecordType.URL,
-              urlInput = url,
-            )
+        val matchedSocial =
+          when {
+            url.contains("instagram.com/", true) ->
+              SocialPlatform.INSTAGRAM to url.substringAfter("instagram.com/").trim('/')
+            url.contains("wa.me/", true) ->
+              SocialPlatform.WHATSAPP to url.substringAfter("wa.me/").trim('/')
+            url.contains("tiktok.com/@", true) ->
+              SocialPlatform.TIKTOK to url.substringAfter("tiktok.com/@").trim('/')
+            url.contains("x.com/", true) ->
+              SocialPlatform.X to url.substringAfter("x.com/").trim('/')
+            url.contains("linkedin.com/in/", true) ->
+              SocialPlatform.LINKEDIN to url.substringAfter("linkedin.com/in/").trim('/')
+            url.contains("youtube.com/@", true) ->
+              SocialPlatform.YOUTUBE to url.substringAfter("youtube.com/@").trim('/')
+            url.contains("threads.net/@", true) ->
+              SocialPlatform.THREADS to url.substringAfter("threads.net/@").trim('/')
+            url.contains("snapchat.com/add/", true) ->
+              SocialPlatform.SNAPCHAT to url.substringAfter("snapchat.com/add/").trim('/')
+            url.contains("github.com/", true) ->
+              SocialPlatform.GITHUB to url.substringAfter("github.com/").trim('/')
+            url.contains("facebook.com/", true) ->
+              SocialPlatform.FACEBOOK to url.substringAfter("facebook.com/").trim('/')
+            url.contains("discord.gg/", true) ->
+              SocialPlatform.DISCORD to url.substringAfter("discord.gg/").trim('/')
+            url.contains("twitch.tv/", true) ->
+              SocialPlatform.TWITCH to url.substringAfter("twitch.tv/").trim('/')
+            else -> null
+          }
+        if (matchedSocial != null) {
+          RecordFormState(
+            makeStep = MakeStep.FILL_DETAILS,
+            selectedPreset = TagPresetKind.SOCIALS,
+            selectedSocial = matchedSocial.first,
+            selectedType = NdefRecordType.URL,
+            socialHandleInput = matchedSocial.second,
+          )
+        } else {
+          RecordFormState(
+            makeStep = MakeStep.FILL_DETAILS,
+            selectedPreset = TagPresetKind.LINK,
+            selectedType = NdefRecordType.URL,
+            urlInput = url,
+          )
         }
       }
       is NdefRecordDraft.Text ->
@@ -830,36 +946,14 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   private fun buildValidatedRecord(form: RecordFormState): NdefRecordDraft? {
     val app = getApplication<Application>()
     return when (form.selectedPreset) {
-      TagPresetKind.INSTAGRAM -> {
-        val raw = form.instagramHandle.trim()
-        val url =
-          when {
-            raw.isBlank() -> ""
-            raw.startsWith("http://", true) || raw.startsWith("https://", true) -> raw
-            raw.contains("instagram.com/", true) -> NdefUriEncoder.normalizeUri(raw)
-            else -> "https://instagram.com/${raw.removePrefix("@")}"
-          }
+      TagPresetKind.SOCIALS -> {
+        val platform = form.selectedSocial
+        val url = platform.buildProfileUrl(form.socialHandleInput)
         if (url.isBlank() || !NdefUriEncoder.isValidUri(url)) {
-          setError(app.getString(R.string.error_invalid_instagram))
-          null
-        } else {
-          NdefRecordDraft.Url(url)
-        }
-      }
-      TagPresetKind.WHATSAPP -> {
-        val raw = form.whatsappPhone.trim()
-        val url =
-          when {
-            raw.isBlank() -> ""
-            raw.startsWith("http://", true) || raw.startsWith("https://", true) -> raw
-            raw.contains("wa.me/", true) -> NdefUriEncoder.normalizeUri(raw)
-            else -> {
-              val digits = raw.filter { it.isDigit() }
-              if (digits.length >= 6) "https://wa.me/$digits" else ""
-            }
-          }
-        if (url.isBlank() || !NdefUriEncoder.isValidUri(url)) {
-          setError(app.getString(R.string.error_invalid_whatsapp))
+          val errRes =
+            if (platform.isPhoneBased) R.string.error_invalid_whatsapp
+            else R.string.error_invalid_social
+          setError(app.getString(errRes))
           null
         } else {
           NdefRecordDraft.Url(url)
