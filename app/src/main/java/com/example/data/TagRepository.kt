@@ -57,6 +57,41 @@ class TagRepository(
     return snapshot
   }
 
+  suspend fun saveCopiedTagBytes(
+    ndefBytes: ByteArray,
+    label: String,
+    isReadOnly: Boolean,
+  ): ActiveCardSnapshot {
+    val decoded = NdefMessageCodec.decodeRecords(ndefBytes).take(1)
+    val clampedBytes =
+      if (decoded.isNotEmpty()) NdefMessageCodec.encodeRecords(decoded) else ndefBytes
+    val snapshot =
+      activeCardStore.writeRawNdefBytes(
+        ndefBytes = clampedBytes,
+        label = label,
+        isReadOnly = isReadOnly,
+      )
+    if (snapshot.hasPayload) {
+      val resolvedLabel =
+        snapshot.label.ifBlank {
+          decoded.firstOrNull()?.let(::deriveDefaultLabel) ?: "Copied Tag"
+        }
+      tagDao.upsertSavedLink(
+        SavedLinkEntity(
+          label = resolvedLabel,
+          summary = snapshot.summary.ifBlank { "Copied Tag (${clampedBytes.size} B)" },
+          recordCount = 1,
+          ndefBytes = clampedBytes,
+          ndefByteSize = clampedBytes.size,
+          isReadOnly = snapshot.isReadOnly,
+          lastProgrammedAt = System.currentTimeMillis(),
+        )
+      )
+    }
+    WidgetSyncHelper.refreshAll(appContext)
+    return snapshot
+  }
+
   fun loadSavedBytes(card: SavedLinkEntity): ActiveCardSnapshot {
     val singleRecord = NdefMessageCodec.decodeRecords(card.ndefBytes).take(1)
     val singleBytes =

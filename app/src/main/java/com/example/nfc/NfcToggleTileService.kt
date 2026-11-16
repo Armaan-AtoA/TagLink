@@ -34,9 +34,11 @@ class NfcToggleTileService : TileService() {
     }
 
     if (!snapshot.hasPayload && snapshot.isReadOnly) {
+      syncTileState()
       openApp()
       return
     }
+
     store.setEmulating(!snapshot.isEmulating)
     syncTileState()
     WidgetSyncHelper.refreshWidgetsOnly(applicationContext)
@@ -57,28 +59,28 @@ class NfcToggleTileService : TileService() {
     tile.label =
       when {
         snapshot.label.isNotBlank() -> snapshot.label
-        else -> getString(R.string.app_name)
+        else -> getString(R.string.qs_tile_label)
       }
     tile.state =
       when {
-        !nfcReady -> Tile.STATE_UNAVAILABLE
         isActive -> Tile.STATE_ACTIVE
         else -> Tile.STATE_INACTIVE
       }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       tile.subtitle =
         when {
-          !nfcReady -> getString(R.string.nfc_status_disabled)
+          !nfcReady -> getString(R.string.qs_tile_nfc_off)
           isActive -> getString(R.string.emulation_active_label)
           hasTarget -> getString(R.string.emulation_standby_label)
-          else -> getString(R.string.virtual_card_empty)
+          else -> getString(R.string.qs_tile_no_tag)
         }
     }
     tile.contentDescription =
       when {
-        !nfcReady -> "${tile.label} ${getString(R.string.nfc_status_disabled)}"
+        !nfcReady -> "${tile.label} ${getString(R.string.qs_tile_nfc_off)}"
         isActive -> "${tile.label} ${getString(R.string.emulation_active_label)}"
-        else -> "${tile.label} ${getString(R.string.emulation_standby_label)}"
+        hasTarget -> "${tile.label} ${getString(R.string.emulation_standby_label)}"
+        else -> "${tile.label} ${getString(R.string.qs_tile_no_tag)}"
       }
     tile.updateTile()
   }

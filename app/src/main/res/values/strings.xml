@@ -7,37 +7,67 @@
     <string name="nfc_status_ready">NFC ON</string>
     <string name="nfc_status_disabled">NFC OFF</string>
     <string name="nfc_status_no_hardware">No NFC</string>
-    <string name="nfc_required_banner">NFC is off. Turn on NFC before activating.</string>
+    <string name="nfc_required_banner">NFC is turned off. Turn on NFC to activate or scan tags.</string>
     <string name="nfc_unsupported_banner">This device does not support NFC Host Card Emulation.</string>
     <string name="action_turn_on_nfc">Open NFC Settings</string>
 
     <string name="home_activate_title">Activate Tag</string>
-    <string name="home_activate_subtitle">Turn NFC tag on/off &amp; pick saved cards</string>
+    <string name="home_activate_subtitle">Broadcast your active tag or pick from saved tags</string>
     <string name="home_make_title">Make Tag</string>
-    <string name="home_make_subtitle">Write 1 record: URL, Wi-Fi, Contact, Text &amp; more</string>
-    <string name="home_pin_widget_button">Pin a Home Screen Widget?</string>
-    <string name="home_pin_widget_sub">One-tap NFC activation from your home screen</string>
+    <string name="home_make_subtitle">Choose Instagram, Link, Contact, Wi-Fi, and more</string>
+    <string name="home_copy_title">Copy Tag</string>
+    <string name="home_copy_subtitle">Scan a physical NFC card or sticker to clone it</string>
+
+    <string name="home_shortcuts_title">Shortcuts</string>
+    <string name="home_shortcuts_subtitle">Add one-tap NFC controls to your phone</string>
+    <string name="shortcut_widget_title">Home Widget</string>
+    <string name="shortcut_widget_sub">Pin toggle or card widget</string>
+    <string name="shortcut_qs_title">Quick Tile</string>
+    <string name="shortcut_qs_sub">Add to Quick Settings</string>
 
     <string name="emulation_active_label">ACTIVE</string>
     <string name="emulation_standby_label">STANDBY</string>
     <string name="emulation_toggle_start">Activate Tag</string>
     <string name="emulation_toggle_stop">Deactivate</string>
-    <string name="virtual_card_empty">No tag loaded</string>
+    <string name="virtual_card_empty">No tag loaded yet</string>
     <string name="label_lock_readonly">Read-Only</string>
     <string name="label_lock_writable">Writable</string>
-    <string name="single_record_rule">1 record per tag</string>
+    <string name="lock_readonly_desc">Other phones can read this tag, not overwrite it</string>
+    <string name="lock_writable_desc">Other NFC writer apps can overwrite this virtual tag</string>
 
-    <string name="label_tag_name_input">Label (optional)</string>
-    <string name="action_write_card">Write Tag</string>
+    <string name="make_step1_title">What should this tag do?</string>
+    <string name="make_step1_subtitle">Pick a type first, then enter your details.</string>
+    <string name="make_step2_change_type">Change type</string>
+    <string name="make_copy_instead">Or scan a physical NFC tag to copy</string>
+    <string name="make_protection_title">Tag Protection</string>
+    <string name="label_tag_name_input">Tag Name (optional)</string>
+    <string name="action_write_card">Save Tag</string>
     <string name="action_clear_inputs">Clear</string>
-    <string name="action_clear_card">Clear Card</string>
+    <string name="action_clear_card">Clear Tag</string>
     <string name="action_go_make_tag">Make a Tag</string>
 
+    <string name="copy_screen_title">Copy Tag</string>
+    <string name="copy_scanning_title">Ready to scan</string>
+    <string name="copy_scanning_body">Hold any NFC tag, keycard, or sticker against the back of your phone.</string>
+    <string name="copy_nfc_off_hint">Turn on NFC first to scan a physical tag.</string>
+    <string name="copy_result_title">Scanned Tag Ready</string>
+    <string name="copy_save_and_use">Save &amp; Use Tag</string>
+    <string name="copy_scan_again">Scan Another</string>
+    <string name="copy_or_duplicate_tip">Tip: You can also duplicate any saved tag using the copy button on its row.</string>
+    <string name="copy_err_not_ndef">This tag does not contain readable NDEF data.</string>
+    <string name="copy_err_empty">This NFC tag is empty.</string>
+    <string name="copy_err_too_large">Tag data exceeds the 2048 B card limit.</string>
+    <string name="copy_err_read_failed">Could not finish reading. Hold the tag steady and try again.</string>
+
     <string name="section_saved_cards">Saved Tags</string>
-    <string name="empty_saved_cards">No saved tags yet</string>
+    <string name="empty_saved_cards">No saved tags yet. Tap Make a Tag to create one.</string>
 
     <string name="qs_tile_label">NFC Tag</string>
-    <string name="msg_qs_tile_added">Quick tile added</string>
+    <string name="qs_tile_nfc_off">NFC off · Tap to open</string>
+    <string name="qs_tile_no_tag">No tag · Tap to set up</string>
+    <string name="msg_qs_tile_added">Quick Settings tile added</string>
+    <string name="msg_qs_tile_already">Quick Settings tile is already in your panel</string>
+    <string name="msg_qs_tile_manual">Swipe down Quick Settings twice, tap Edit (pencil), and drag NFC Tag to your panel</string>
 
     <string name="widget_toggle_name">NFC Tag Toggle</string>
     <string name="widget_toggle_description">Tap to activate or stop NFC tag</string>
@@ -48,12 +78,12 @@
     <string name="widget_config_title">Pin Card to Widget</string>
     <string name="widget_current_card">Current Card</string>
 
-    <string name="pin_dialog_title">Pin a widget to your home screen?</string>
-    <string name="pin_dialog_body">Choose a widget to add a one-tap NFC button on your launcher.</string>
+    <string name="pin_dialog_title">Pin a Home Screen Widget</string>
+    <string name="pin_dialog_body">Choose a widget for one-tap NFC activation from your launcher.</string>
     <string name="pin_widget_toggle_title">NFC Tag Toggle</string>
-    <string name="pin_widget_toggle_desc">Activates or stops your current loaded tag</string>
+    <string name="pin_widget_toggle_desc">Turns your current active tag on or off</string>
     <string name="pin_widget_preset_title">Pinned NFC Card</string>
-    <string name="pin_widget_preset_desc">Loads and activates a specific saved tag</string>
+    <string name="pin_widget_preset_desc">Loads and activates a chosen saved tag</string>
     <string name="msg_widget_pin_requested">Follow launcher prompt to place widget</string>
     <string name="msg_widget_pin_unsupported">Long-press your home screen and open Widgets to add it</string>
 
@@ -61,52 +91,58 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_theme_label">Theme</string>
     <string name="settings_section_tag">Tag Behavior</string>
-    <string name="settings_default_lock_label">Default Lock Mode</string>
-    <string name="settings_auto_activate_write">Auto-activate after making tag</string>
+    <string name="settings_default_lock_label">Default Tag Protection</string>
+    <string name="settings_auto_activate_write">Auto-activate after saving tag</string>
     <string name="settings_auto_activate_select">Auto-activate when picking saved tag</string>
     <string name="settings_prefer_foreground">Prioritize TagLink while app is open</string>
     <string name="settings_stop_on_leave">Deactivate tag when leaving app</string>
-    <string name="settings_section_shortcuts">System &amp; Shortcuts</string>
+    <string name="settings_section_shortcuts">Shortcuts &amp; Guide</string>
     <string name="settings_open_nfc">Android NFC Settings</string>
     <string name="settings_pin_widget">Pin Home Screen Widget</string>
     <string name="settings_add_qs_tile">Add Quick Settings Tile</string>
+    <string name="settings_replay_tutorial">Replay Interactive Tutorial</string>
 
-    <string name="tutorial_title">TagLink Guide</string>
-    <string name="tutorial_close">Got It</string>
-    <string name="tutorial_step1_title">1. How TagLink Works</string>
-    <string name="tutorial_step1_body">Your phone emulates an NFC Type 4 NDEF Tag. Any NFC-capable phone can tap yours and read the tag instantly without installing TagLink.</string>
-    <string name="tutorial_step2_title">2. Turn On NFC First</string>
-    <string name="tutorial_step2_body">Device NFC must be turned on before TagLink can activate a tag. If NFC is off, use Open NFC Settings in the app or pull down your Quick Settings shade.</string>
-    <string name="tutorial_step3_title">3. Make a Tag (1 Record)</string>
-    <string name="tutorial_step3_body">Open Make Tag, choose a single record type (URL, Wi-Fi, Contact vCard, Text, Email, Phone, SMS, Location, App, or MIME), fill the fields, and tap Write Tag. Each card stores 1 record.</string>
-    <string name="tutorial_step4_title">4. Activate &amp; Tap</string>
-    <string name="tutorial_step4_body">Open Activate Tag, tap Activate Tag, and hold the back of your unlocked phone against the NFC reader area of the other phone for about 1 second.</string>
-    <string name="tutorial_step5_title">5. Read-Only vs Writable</string>
-    <string name="tutorial_step5_body">Read-Only locks the virtual tag against external edits. Writable allows external NFC writing apps to overwrite the single record on your virtual card.</string>
-    <string name="tutorial_step6_title">6. Widgets &amp; Quick Tile</string>
-    <string name="tutorial_step6_body">Use Pin a Home Screen Widget? on the home screen or Add Quick Settings Tile in Settings to toggle NFC emulation without opening the app.</string>
+    <string name="tutorial_skip">Skip</string>
+    <string name="tutorial_back">Back</string>
+    <string name="tutorial_next">Next</string>
+    <string name="tutorial_finish">Start Using TagLink</string>
+    <string name="tutorial_tap_circle_hint">Tap the highlighted area or Next</string>
+    <string name="tutorial_step1_title">Check Your NFC Status</string>
+    <string name="tutorial_step1_body">Device NFC must be ON before activating or scanning tags. This top badge always shows whether NFC is ready.</string>
+    <string name="tutorial_step2_title">Make a Tag in 2 Simple Steps</string>
+    <string name="tutorial_step2_body">Tap Make Tag, pick what you want to share (like Instagram, Website, Wi-Fi, or Contact Card), then enter the info.</string>
+    <string name="tutorial_step3_title">Copy a Physical NFC Tag</string>
+    <string name="tutorial_step3_body">Have a real NFC card or sticker? Use Copy Tag to hold it against your phone and clone its tag into TagLink.</string>
+    <string name="tutorial_step4_title">Activate &amp; Tap Any Phone</string>
+    <string name="tutorial_step4_body">Open Activate Tag, turn it on, and hold the back of your unlocked phone near another phone for 1 second to share.</string>
+    <string name="tutorial_step5_title">One-Tap Shortcuts</string>
+    <string name="tutorial_step5_body">Pin a Home Widget or Quick Settings Tile here so you can turn NFC sharing on or off without opening the app.</string>
 
     <string name="cd_back">Back</string>
-    <string name="cd_tutorial">Tutorial</string>
+    <string name="cd_tutorial">Interactive tutorial</string>
     <string name="cd_app_settings">App settings</string>
     <string name="cd_delete_saved_link">Delete saved tag</string>
+    <string name="cd_copy_saved_link">Duplicate saved tag</string>
     <string name="cd_load_saved_link">Load tag</string>
     <string name="cd_nfc_settings">NFC settings</string>
 
     <string name="error_nfc_off">Turn on NFC first</string>
     <string name="error_no_card_loaded">Write or select a tag first</string>
     <string name="error_payload_too_long">Exceeds 2048 B limit</string>
-    <string name="error_invalid_url">Invalid URL</string>
+    <string name="error_invalid_instagram">Enter an Instagram username or profile link</string>
+    <string name="error_invalid_whatsapp">Enter a valid phone number or WhatsApp link</string>
+    <string name="error_invalid_url">Enter a valid web link (for example https://example.com)</string>
     <string name="error_empty_text">Enter text</string>
-    <string name="error_empty_contact">Enter name, phone, or email</string>
-    <string name="error_empty_wifi_ssid">Enter SSID</string>
-    <string name="error_empty_email">Invalid email</string>
-    <string name="error_empty_phone">Enter phone number</string>
-    <string name="error_empty_geo">Invalid coordinates</string>
-    <string name="error_empty_package">Invalid package name</string>
+    <string name="error_empty_contact">Enter a name, phone number, or email</string>
+    <string name="error_empty_wifi_ssid">Enter the Wi-Fi network name (SSID)</string>
+    <string name="error_empty_email">Enter a valid email address</string>
+    <string name="error_empty_phone">Enter a phone number</string>
+    <string name="error_empty_geo">Enter valid latitude and longitude coordinates</string>
+    <string name="error_empty_package">Enter a valid Android package name (e.g. com.instagram.android)</string>
     <string name="error_empty_mime">Enter MIME type and data</string>
 
-    <string name="msg_card_written">Tag written</string>
-    <string name="msg_card_cleared">Card cleared</string>
+    <string name="msg_card_written">Tag saved</string>
+    <string name="msg_card_copied">Tag copied and loaded</string>
+    <string name="msg_card_cleared">Tag cleared</string>
     <string name="action_cancel">Cancel</string>
 </resources>

@@ -15,10 +15,14 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.ThemeMode
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
+import com.example.nfc.NfcTagReaderHelper
 import com.example.ui.TagProgrammerScreen
 import com.example.ui.TagProgrammerViewModel
 import com.example.ui.theme.TagLinkTheme
@@ -54,16 +58,65 @@ class MainActivity : ComponentActivity() {
         onDispose { unregisterReceiver(receiver) }
       }
 
+      val lifecycleOwner = LocalLifecycleOwner.current
+      DisposableEffect(uiState.isCopyScanning, lifecycleOwner) {
+        val adapter = NfcAdapter.getDefaultAdapter(this@MainActivity)
+        fun enableScanning() {
+          if (!uiState.isCopyScanning || adapter == null) return
+          NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
+          val flags =
+            NfcAdapter.FLAG_READER_NFC_A or
+              NfcAdapter.FLAG_READER_NFC_B or
+              NfcAdapter.FLAG_READER_NFC_F or
+              NfcAdapter.FLAG_READER_NFC_V or
+              NfcAdapter.FLAG_READER_NFC_BARCODE
+          runCatching {
+            adapter.enableReaderMode(
+              this@MainActivity,
+              { tag ->
+                val result = NfcTagReaderHelper.readPhysicalTag(tag)
+                runOnUiThread { viewModel.onPhysicalTagScanned(result) }
+              },
+              flags,
+              null,
+            )
+          }
+        }
+        fun disableScanning() {
+          if (adapter != null) {
+            runCatching { adapter.disableReaderMode(this@MainActivity) }
+          }
+        }
+
+        if (uiState.isCopyScanning && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+          enableScanning()
+        }
+        val observer = LifecycleEventObserver { _, event ->
+          when (event) {
+            Lifecycle.Event.ON_RESUME -> if (uiState.isCopyScanning) enableScanning()
+            Lifecycle.Event.ON_PAUSE -> disableScanning()
+            else -> Unit
+          }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+          lifecycleOwner.lifecycle.removeObserver(observer)
+          disableScanning()
+        }
+      }
+
       LaunchedEffect(
         uiState.isEmulating,
         uiState.activeNdefBytes,
         uiState.isReadOnly,
         uiState.nfcStatus,
         uiState.settings.preferForegroundHce,
+        uiState.isCopyScanning,
       ) {
         val hasTarget = uiState.activeNdefBytes.isNotEmpty() || !uiState.isReadOnly
         val shouldPrefer =
-          uiState.settings.preferForegroundHce &&
+          !uiState.isCopyScanning &&
+            uiState.settings.preferForegroundHce &&
             uiState.isEmulating &&
             hasTarget &&
             uiState.nfcStatus == NfcHardwareStatus.READY
@@ -82,11 +135,14 @@ class MainActivity : ComponentActivity() {
           state = uiState,
           onNavigate = viewModel::navigateTo,
           onOpenTutorial = viewModel::openTutorial,
+          onNextTutorialStep = viewModel::nextTutorialStep,
+          onPrevTutorialStep = viewModel::prevTutorialStep,
           onDismissTutorial = viewModel::dismissTutorial,
           onOpenPinWidget = viewModel::openPinWidgetDialog,
           onDismissPinWidget = viewModel::dismissPinWidgetDialog,
           onPinWidget = viewModel::pinWidget,
-          onSelectRecordType = viewModel::selectRecordType,
+          onSelectMakePreset = viewModel::selectMakePreset,
+          onChangeMakeType = viewModel::backToChooseMakeType,
           onUpdateForm = viewModel::updateForm,
           onCardLabelChanged = viewModel::onCardLabelChanged,
           onMakeReadOnlyChanged = viewModel::onMakeReadOnlyChanged,
@@ -94,10 +150,15 @@ class MainActivity : ComponentActivity() {
           onApplyAppPreset = viewModel::applyAppPreset,
           onWriteCard = viewModel::writeToCard,
           onClearForm = viewModel::clearForm,
+          onCopyLabelChanged = viewModel::onCopyLabelChanged,
+          onCopyReadOnlyChanged = viewModel::onCopyReadOnlyChanged,
+          onSaveCopiedTag = viewModel::saveScannedTag,
+          onScanAgain = viewModel::resetCopyScan,
           onClearCard = viewModel::clearCard,
           onToggleEmulation = viewModel::toggleEmulation,
           onToggleReadOnly = viewModel::toggleReadOnly,
           onLoadSavedCard = viewModel::loadSavedCard,
+          onDuplicateSavedCard = viewModel::duplicateSavedCard,
           onDeleteSavedCard = viewModel::deleteSavedCard,
           onUpdateSettings = viewModel::updateSettings,
           onOpenNfcSettings = {
@@ -116,7 +177,8 @@ class MainActivity : ComponentActivity() {
     val state = viewModel.uiState.value
     val hasTarget = state.activeNdefBytes.isNotEmpty() || !state.isReadOnly
     val shouldPrefer =
-      state.settings.preferForegroundHce &&
+      !state.isCopyScanning &&
+        state.settings.preferForegroundHce &&
         state.isEmulating &&
         hasTarget &&
         state.nfcStatus == NfcHardwareStatus.READY
@@ -125,6 +187,9 @@ class MainActivity : ComponentActivity() {
 
   override fun onPause() {
     NfcHardwareHelper.setPreferredForegroundService(this, false)
+    NfcAdapter.getDefaultAdapter(this)?.let { adapter ->
+      runCatching { adapter.disableReaderMode(this) }
+    }
     super.onPause()
   }
 

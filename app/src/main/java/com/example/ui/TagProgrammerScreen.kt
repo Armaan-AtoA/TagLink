@@ -13,17 +13,25 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AddBox
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Info
@@ -48,9 +56,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +71,6 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.AppSettings
 import com.example.data.SavedLinkEntity
-import com.example.nfc.NdefRecordType
 import com.example.nfc.NfcHardwareStatus
 import com.example.ui.theme.LocalTagExtendedColors
 import com.example.ui.theme.MonoBodyStyle
@@ -70,11 +81,14 @@ fun TagProgrammerScreen(
   state: TagUiState,
   onNavigate: (AppScreen) -> Unit,
   onOpenTutorial: () -> Unit,
+  onNextTutorialStep: () -> Unit,
+  onPrevTutorialStep: () -> Unit,
   onDismissTutorial: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onDismissPinWidget: () -> Unit,
   onPinWidget: (WidgetType) -> Unit,
-  onSelectRecordType: (NdefRecordType) -> Unit,
+  onSelectMakePreset: (TagPresetKind) -> Unit,
+  onChangeMakeType: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onCardLabelChanged: (String) -> Unit,
   onMakeReadOnlyChanged: (Boolean) -> Unit,
@@ -82,10 +96,15 @@ fun TagProgrammerScreen(
   onApplyAppPreset: (String) -> Unit,
   onWriteCard: () -> Unit,
   onClearForm: () -> Unit,
+  onCopyLabelChanged: (String) -> Unit,
+  onCopyReadOnlyChanged: (Boolean) -> Unit,
+  onSaveCopiedTag: () -> Unit,
+  onScanAgain: () -> Unit,
   onClearCard: () -> Unit,
   onToggleEmulation: (Boolean) -> Unit,
   onToggleReadOnly: (Boolean) -> Unit,
   onLoadSavedCard: (SavedLinkEntity) -> Unit,
+  onDuplicateSavedCard: (SavedLinkEntity) -> Unit,
   onDeleteSavedCard: (Long) -> Unit,
   onUpdateSettings: ((AppSettings) -> AppSettings) -> Unit,
   onOpenNfcSettings: () -> Unit,
@@ -94,6 +113,7 @@ fun TagProgrammerScreen(
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
   val extendedColors = LocalTagExtendedColors.current
+  val tutorialBounds = remember { mutableStateMapOf<TutorialTarget, Rect>() }
 
   LaunchedEffect(state.statusMessage) {
     val msg = state.statusMessage
@@ -103,105 +123,146 @@ fun TagProgrammerScreen(
     }
   }
 
-  if (state.currentScreen != AppScreen.HOME) {
-    BackHandler { onNavigate(AppScreen.HOME) }
-  }
-
-  Scaffold(
-    modifier = Modifier.fillMaxSize(),
-    containerColor = MaterialTheme.colorScheme.background,
-    contentWindowInsets = WindowInsets.safeDrawing,
-    snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-    topBar = {
-      Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-        TopNavigationBar(
-          currentScreen = state.currentScreen,
-          nfcStatus = state.nfcStatus,
-          onBack = { onNavigate(AppScreen.HOME) },
-          onOpenTutorial = onOpenTutorial,
-          onOpenSettings = { onNavigate(AppScreen.SETTINGS) },
-        )
-        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
-      }
-    },
-  ) { innerPadding ->
-    BoxWithConstraints(
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
-      contentAlignment = Alignment.TopCenter,
-    ) {
-      val contentModifier = Modifier.fillMaxSize().widthIn(max = 720.dp)
-
-      when (state.currentScreen) {
-        AppScreen.HOME -> {
-          HomeEntryScreen(
-            state = state,
-            onOpenActivate = { onNavigate(AppScreen.ACTIVATE_TAG) },
-            onOpenMake = { onNavigate(AppScreen.MAKE_TAG) },
-            onOpenPinWidget = onOpenPinWidget,
-            onOpenNfcSettings = onOpenNfcSettings,
-            modifier = contentModifier,
-          )
-        }
-
-        AppScreen.ACTIVATE_TAG -> {
-          ActivateTagScreen(
-            state = state,
-            onToggleEmulation = onToggleEmulation,
-            onToggleReadOnly = onToggleReadOnly,
-            onClearCard = onClearCard,
-            onLoadSavedCard = onLoadSavedCard,
-            onDeleteSavedCard = onDeleteSavedCard,
-            onOpenMakeTag = { onNavigate(AppScreen.MAKE_TAG) },
-            onOpenNfcSettings = onOpenNfcSettings,
-            modifier = contentModifier,
-          )
-        }
-
-        AppScreen.MAKE_TAG -> {
-          LazyColumn(
-            modifier = contentModifier,
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            item {
-              RecordComposerSection(
-                state = state,
-                onSelectRecordType = onSelectRecordType,
-                onUpdateForm = onUpdateForm,
-                onCardLabelChanged = onCardLabelChanged,
-                onMakeReadOnlyChanged = onMakeReadOnlyChanged,
-                onApplyUrlPrefix = onApplyUrlPrefix,
-                onApplyAppPreset = onApplyAppPreset,
-                onWriteCard = onWriteCard,
-                onClearForm = onClearForm,
-              )
-            }
-          }
-        }
-
-        AppScreen.SETTINGS -> {
-          SettingsScreen(
-            settings = state.settings,
-            onUpdateSettings = onUpdateSettings,
-            onOpenNfcSettings = onOpenNfcSettings,
-            onOpenPinWidget = onOpenPinWidget,
-            onRequestAddQuickTile = onRequestAddQuickTile,
-            modifier = contentModifier,
-          )
-        }
-      }
+  LaunchedEffect(state.currentScreen) {
+    if (state.currentScreen != AppScreen.ACTIVATE_TAG) {
+      snackbarHostState.currentSnackbarData?.dismiss()
     }
   }
 
-  if (state.showPinWidgetDialog) {
-    PinWidgetDialog(
-      onPinWidget = onPinWidget,
-      onDismiss = onDismissPinWidget,
-    )
+  if (state.currentScreen != AppScreen.HOME && !state.showTutorial) {
+    BackHandler { onNavigate(AppScreen.HOME) }
   }
 
-  if (state.showTutorial) {
-    TutorialDialog(onDismiss = onDismissTutorial)
+  Box(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+      modifier = Modifier.fillMaxSize(),
+      containerColor = MaterialTheme.colorScheme.background,
+      contentWindowInsets =
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+      snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+      topBar = {
+        Column(
+          modifier =
+            Modifier.fillMaxWidth()
+              .background(MaterialTheme.colorScheme.surface)
+              .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+              .padding(top = 6.dp),
+        ) {
+          TopNavigationBar(
+            currentScreen = state.currentScreen,
+            nfcStatus = state.nfcStatus,
+            onBack = { onNavigate(AppScreen.HOME) },
+            onOpenTutorial = onOpenTutorial,
+            onOpenSettings = { onNavigate(AppScreen.SETTINGS) },
+            onReportNfcBounds = { rect -> tutorialBounds[TutorialTarget.NFC_STATUS] = rect },
+          )
+          HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
+        }
+      },
+    ) { innerPadding ->
+      BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().padding(innerPadding),
+        contentAlignment = Alignment.TopCenter,
+      ) {
+        val contentModifier = Modifier.fillMaxSize().widthIn(max = 720.dp)
+
+        when (state.currentScreen) {
+          AppScreen.HOME -> {
+            HomeEntryScreen(
+              state = state,
+              onOpenActivate = { onNavigate(AppScreen.ACTIVATE_TAG) },
+              onOpenMake = { onNavigate(AppScreen.MAKE_TAG) },
+              onOpenCopy = { onNavigate(AppScreen.COPY_TAG) },
+              onOpenPinWidget = onOpenPinWidget,
+              onRequestAddQuickTile = onRequestAddQuickTile,
+              onOpenNfcSettings = onOpenNfcSettings,
+              onReportBounds = { target, rect -> tutorialBounds[target] = rect },
+              modifier = contentModifier,
+            )
+          }
+
+          AppScreen.ACTIVATE_TAG -> {
+            ActivateTagScreen(
+              state = state,
+              onToggleEmulation = onToggleEmulation,
+              onToggleReadOnly = onToggleReadOnly,
+              onClearCard = onClearCard,
+              onLoadSavedCard = onLoadSavedCard,
+              onDuplicateSavedCard = onDuplicateSavedCard,
+              onDeleteSavedCard = onDeleteSavedCard,
+              onOpenMakeTag = { onNavigate(AppScreen.MAKE_TAG) },
+              onOpenNfcSettings = onOpenNfcSettings,
+              modifier = contentModifier,
+            )
+          }
+
+          AppScreen.MAKE_TAG -> {
+            LazyColumn(
+              modifier = contentModifier,
+              contentPadding = PaddingValues(16.dp),
+              verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              item {
+                RecordComposerSection(
+                  state = state,
+                  onSelectPreset = onSelectMakePreset,
+                  onChangeMakeType = onChangeMakeType,
+                  onOpenCopyTag = { onNavigate(AppScreen.COPY_TAG) },
+                  onUpdateForm = onUpdateForm,
+                  onCardLabelChanged = onCardLabelChanged,
+                  onMakeReadOnlyChanged = onMakeReadOnlyChanged,
+                  onApplyUrlPrefix = onApplyUrlPrefix,
+                  onApplyAppPreset = onApplyAppPreset,
+                  onWriteCard = onWriteCard,
+                  onClearForm = onClearForm,
+                )
+              }
+            }
+          }
+
+          AppScreen.COPY_TAG -> {
+            CopyTagScreen(
+              state = state,
+              onLabelChanged = onCopyLabelChanged,
+              onReadOnlyChanged = onCopyReadOnlyChanged,
+              onSaveCopiedTag = onSaveCopiedTag,
+              onScanAgain = onScanAgain,
+              onOpenNfcSettings = onOpenNfcSettings,
+              modifier = contentModifier,
+            )
+          }
+
+          AppScreen.SETTINGS -> {
+            SettingsScreen(
+              settings = state.settings,
+              onUpdateSettings = onUpdateSettings,
+              onOpenNfcSettings = onOpenNfcSettings,
+              onOpenPinWidget = onOpenPinWidget,
+              onRequestAddQuickTile = onRequestAddQuickTile,
+              onReplayTutorial = onOpenTutorial,
+              modifier = contentModifier,
+            )
+          }
+        }
+      }
+    }
+
+    if (state.showPinWidgetDialog) {
+      PinWidgetDialog(
+        onPinWidget = onPinWidget,
+        onDismiss = onDismissPinWidget,
+      )
+    }
+
+    if (state.showTutorial) {
+      InteractiveTutorialOverlay(
+        stepIndex = state.tutorialStep,
+        targetBounds = tutorialBounds,
+        onNext = onNextTutorialStep,
+        onPrev = onPrevTutorialStep,
+        onSkip = onDismissTutorial,
+      )
+    }
   }
 }
 
@@ -212,6 +273,7 @@ private fun TopNavigationBar(
   onBack: () -> Unit,
   onOpenTutorial: () -> Unit,
   onOpenSettings: () -> Unit,
+  onReportNfcBounds: (Rect) -> Unit,
 ) {
   val extendedColors = LocalTagExtendedColors.current
   val statusLabel =
@@ -232,11 +294,12 @@ private fun TopNavigationBar(
       AppScreen.HOME -> stringResource(R.string.app_name)
       AppScreen.ACTIVATE_TAG -> stringResource(R.string.home_activate_title)
       AppScreen.MAKE_TAG -> stringResource(R.string.home_make_title)
+      AppScreen.COPY_TAG -> stringResource(R.string.copy_screen_title)
       AppScreen.SETTINGS -> stringResource(R.string.settings_title)
     }
 
   Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -266,6 +329,9 @@ private fun TopNavigationBar(
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier =
+          Modifier.onGloballyPositioned { coords -> onReportNfcBounds(coords.boundsInRoot()) }
+            .padding(horizontal = 4.dp, vertical = 2.dp),
       ) {
         Box(modifier = Modifier.size(7.dp).background(statusColor))
         Text(
@@ -321,8 +387,11 @@ private fun HomeEntryScreen(
   state: TagUiState,
   onOpenActivate: () -> Unit,
   onOpenMake: () -> Unit,
+  onOpenCopy: () -> Unit,
   onOpenPinWidget: () -> Unit,
+  onRequestAddQuickTile: () -> Unit,
   onOpenNfcSettings: () -> Unit,
+  onReportBounds: (TutorialTarget, Rect) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val extendedColors = LocalTagExtendedColors.current
@@ -337,7 +406,7 @@ private fun HomeEntryScreen(
     }
 
   LazyColumn(
-    modifier = modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize().testTag("home_list"),
     contentPadding = PaddingValues(16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
@@ -370,6 +439,10 @@ private fun HomeEntryScreen(
         borderColor = if (isActive) extendedColors.signalActive else extendedColors.border,
         onClick = onOpenActivate,
         testTag = "home_activate_tag_button",
+        modifier =
+          Modifier.onGloballyPositioned { coords ->
+            onReportBounds(TutorialTarget.ACTIVATE_TAG, coords.boundsInRoot())
+          },
       )
     }
 
@@ -378,28 +451,96 @@ private fun HomeEntryScreen(
         icon = Icons.Outlined.EditNote,
         title = stringResource(R.string.home_make_title),
         subtitle = stringResource(R.string.home_make_subtitle),
-        badgeText = stringResource(R.string.single_record_rule),
+        badgeText = null,
         badgeActive = false,
         borderColor = extendedColors.border,
         onClick = onOpenMake,
         testTag = "home_make_tag_button",
+        modifier =
+          Modifier.onGloballyPositioned { coords ->
+            onReportBounds(TutorialTarget.MAKE_TAG, coords.boundsInRoot())
+          },
       )
     }
 
     item {
-      OutlinedButton(
+      HomeChoiceCard(
+        icon = Icons.Outlined.ContentCopy,
+        title = stringResource(R.string.home_copy_title),
+        subtitle = stringResource(R.string.home_copy_subtitle),
+        badgeText = null,
+        badgeActive = false,
+        borderColor = extendedColors.border,
+        onClick = onOpenCopy,
+        testTag = "home_copy_tag_button",
+        modifier =
+          Modifier.onGloballyPositioned { coords ->
+            onReportBounds(TutorialTarget.COPY_TAG, coords.boundsInRoot())
+          },
+      )
+    }
+
+    item {
+      HomeShortcutsCard(
+        onOpenPinWidget = onOpenPinWidget,
+        onRequestAddQuickTile = onRequestAddQuickTile,
+        modifier =
+          Modifier.onGloballyPositioned { coords ->
+            onReportBounds(TutorialTarget.SHORTCUTS, coords.boundsInRoot())
+          },
+      )
+    }
+  }
+}
+
+@Composable
+private fun HomeShortcutsCard(
+  onOpenPinWidget: () -> Unit,
+  onRequestAddQuickTile: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val extendedColors = LocalTagExtendedColors.current
+
+  Column(
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surface)
+        .border(1.dp, extendedColors.border)
+        .padding(14.dp)
+        .testTag("home_shortcuts_card"),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        text = stringResource(R.string.home_shortcuts_title),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        text = stringResource(R.string.home_shortcuts_subtitle),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Surface(
         onClick = onOpenPinWidget,
         shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
         border = BorderStroke(1.dp, extendedColors.border),
         modifier =
-          Modifier.fillMaxWidth()
+          Modifier.weight(1f)
             .minimumInteractiveComponentSize()
             .testTag("pin_widget_prompt_button"),
       ) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(12.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
           Icon(
             imageVector = Icons.Outlined.Widgets,
@@ -407,18 +548,57 @@ private fun HomeEntryScreen(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
           )
-          Column(modifier = Modifier.weight(1f)) {
-            Text(
-              text = stringResource(R.string.home_pin_widget_button),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-              text = stringResource(R.string.home_pin_widget_sub),
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
+          Text(
+            text = stringResource(R.string.shortcut_widget_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+          Text(
+            text = stringResource(R.string.shortcut_widget_sub),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+      }
+
+      Surface(
+        onClick = onRequestAddQuickTile,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, extendedColors.border),
+        modifier =
+          Modifier.weight(1f)
+            .minimumInteractiveComponentSize()
+            .testTag("pin_quick_tile_button"),
+      ) {
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(12.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+          Icon(
+            imageVector = Icons.Outlined.AddBox,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+          )
+          Text(
+            text = stringResource(R.string.shortcut_qs_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+          Text(
+            text = stringResource(R.string.shortcut_qs_sub),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
         }
       }
     }
@@ -430,23 +610,25 @@ private fun HomeChoiceCard(
   icon: androidx.compose.ui.graphics.vector.ImageVector,
   title: String,
   subtitle: String,
-  badgeText: String,
+  badgeText: String?,
   badgeActive: Boolean,
   borderColor: androidx.compose.ui.graphics.Color,
   onClick: () -> Unit,
   testTag: String,
+  modifier: Modifier = Modifier,
 ) {
   val extendedColors = LocalTagExtendedColors.current
   Column(
     modifier =
-      Modifier.fillMaxWidth()
+      modifier
+        .fillMaxWidth()
         .minimumInteractiveComponentSize()
         .background(MaterialTheme.colorScheme.surface)
         .border(1.dp, borderColor)
         .clickable(onClick = onClick)
         .padding(16.dp)
         .testTag(testTag),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -472,22 +654,24 @@ private fun HomeChoiceCard(
         )
       }
 
-      Box(
-        modifier =
-          Modifier.background(
-              if (badgeActive) extendedColors.signalActiveContainer
-              else MaterialTheme.colorScheme.surfaceVariant
-            )
-            .border(1.dp, if (badgeActive) extendedColors.signalActive else extendedColors.border)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-      ) {
-        Text(
-          text = badgeText,
-          style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-          color =
-            if (badgeActive) extendedColors.signalActive
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+      if (badgeText != null) {
+        Box(
+          modifier =
+            Modifier.background(
+                if (badgeActive) extendedColors.signalActiveContainer
+                else MaterialTheme.colorScheme.surfaceVariant
+              )
+              .border(1.dp, if (badgeActive) extendedColors.signalActive else extendedColors.border)
+              .padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+          Text(
+            text = badgeText,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color =
+              if (badgeActive) extendedColors.signalActive
+              else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
     }
 
@@ -508,6 +692,7 @@ private fun ActivateTagScreen(
   onToggleReadOnly: (Boolean) -> Unit,
   onClearCard: () -> Unit,
   onLoadSavedCard: (SavedLinkEntity) -> Unit,
+  onDuplicateSavedCard: (SavedLinkEntity) -> Unit,
   onDeleteSavedCard: (Long) -> Unit,
   onOpenMakeTag: () -> Unit,
   onOpenNfcSettings: () -> Unit,
@@ -572,7 +757,7 @@ private fun ActivateTagScreen(
             onClick = onOpenMakeTag,
             shape = MaterialTheme.shapes.small,
             border = BorderStroke(1.dp, extendedColors.border),
-            modifier = Modifier.minimumInteractiveComponentSize(),
+            modifier = Modifier.height(48.dp),
           ) {
             Text(text = stringResource(R.string.action_go_make_tag))
           }
@@ -585,6 +770,7 @@ private fun ActivateTagScreen(
           isActive =
             card.ndefBytes.contentEquals(state.activeNdefBytes) && card.ndefBytes.isNotEmpty(),
           onSelect = { onLoadSavedCard(card) },
+          onDuplicate = { onDuplicateSavedCard(card) },
           onDelete = { onDeleteSavedCard(card.id) },
         )
       }
@@ -618,7 +804,7 @@ private fun NfcDisabledBanner(
         onClick = onOpenNfcSettings,
         shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-        modifier = Modifier.minimumInteractiveComponentSize().testTag("banner_nfc_settings_button"),
+        modifier = Modifier.height(48.dp).testTag("banner_nfc_settings_button"),
       ) {
         Text(
           text = stringResource(R.string.action_turn_on_nfc),
@@ -792,7 +978,6 @@ private fun VirtualCardPanel(
           border = if (isActive) BorderStroke(1.dp, extendedColors.border) else null,
           modifier =
             Modifier.weight(1f)
-              .minimumInteractiveComponentSize()
               .height(48.dp)
               .testTag("emulation_toggle_button"),
         ) {
@@ -809,10 +994,7 @@ private fun VirtualCardPanel(
             onClick = onClearCard,
             shape = MaterialTheme.shapes.small,
             border = BorderStroke(1.dp, extendedColors.border),
-            modifier =
-              Modifier.minimumInteractiveComponentSize()
-                .height(48.dp)
-                .testTag("clear_card_button"),
+            modifier = Modifier.height(48.dp).testTag("clear_card_button"),
           ) {
             Text(
               text = stringResource(R.string.action_clear_inputs),
@@ -824,10 +1006,7 @@ private fun VirtualCardPanel(
             onClick = onOpenMakeTag,
             shape = MaterialTheme.shapes.small,
             border = BorderStroke(1.dp, extendedColors.border),
-            modifier =
-              Modifier.minimumInteractiveComponentSize()
-                .height(48.dp)
-                .testTag("quick_make_tag_button"),
+            modifier = Modifier.height(48.dp).testTag("quick_make_tag_button"),
           ) {
             Text(
               text = stringResource(R.string.action_go_make_tag),
@@ -845,6 +1024,7 @@ private fun SavedCardRow(
   card: SavedLinkEntity,
   isActive: Boolean,
   onSelect: () -> Unit,
+  onDuplicate: () -> Unit,
   onDelete: () -> Unit,
 ) {
   val extendedColors = LocalTagExtendedColors.current
@@ -859,7 +1039,7 @@ private fun SavedCardRow(
         .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)
         .testTag("saved_link_row_${card.id}"),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(10.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Icon(
       imageVector = Icons.Outlined.Tag,
@@ -884,6 +1064,18 @@ private fun SavedCardRow(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+      )
+    }
+
+    IconButton(
+      onClick = onDuplicate,
+      modifier = Modifier.minimumInteractiveComponentSize().testTag("copy_saved_link_${card.id}"),
+    ) {
+      Icon(
+        imageVector = Icons.Outlined.ContentCopy,
+        contentDescription = stringResource(R.string.cd_copy_saved_link),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(18.dp),
       )
     }
 

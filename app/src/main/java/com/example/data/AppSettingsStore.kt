@@ -16,6 +16,7 @@ data class AppSettings(
   val autoActivateOnSelect: Boolean = false,
   val preferForegroundHce: Boolean = true,
   val stopOnLeaveApp: Boolean = false,
+  val hasCompletedTutorial: Boolean = false,
 )
 
 class AppSettingsStore(context: Context) {
@@ -33,6 +34,7 @@ class AppSettingsStore(context: Context) {
       autoActivateOnSelect = prefs.getBoolean(KEY_AUTO_ACTIVATE_SELECT, false),
       preferForegroundHce = prefs.getBoolean(KEY_PREFER_FOREGROUND, true),
       stopOnLeaveApp = prefs.getBoolean(KEY_STOP_ON_LEAVE, false),
+      hasCompletedTutorial = prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false),
     )
   }
 
@@ -46,6 +48,7 @@ class AppSettingsStore(context: Context) {
       .putBoolean(KEY_AUTO_ACTIVATE_SELECT, updated.autoActivateOnSelect)
       .putBoolean(KEY_PREFER_FOREGROUND, updated.preferForegroundHce)
       .putBoolean(KEY_STOP_ON_LEAVE, updated.stopOnLeaveApp)
+      .putBoolean(KEY_TUTORIAL_COMPLETED, updated.hasCompletedTutorial)
       .apply()
     return updated
   }
@@ -58,5 +61,6 @@ class AppSettingsStore(context: Context) {
     private const val KEY_AUTO_ACTIVATE_SELECT = "auto_activate_select"
     private const val KEY_PREFER_FOREGROUND = "prefer_foreground"
     private const val KEY_STOP_ON_LEAVE = "stop_on_leave"
+    private const val KEY_TUTORIAL_COMPLETED = "has_completed_tutorial"
   }
 }

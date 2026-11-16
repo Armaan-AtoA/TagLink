@@ -9,11 +9,14 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.AppSettings
 import com.example.data.AppSettingsStore
 import com.example.data.SavedLinkEntity
 import com.example.data.TagDatabase
@@ -24,6 +27,9 @@ import com.example.nfc.NdefMessageCodec
 import com.example.nfc.NdefRecordDraft
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
+import com.example.nfc.NfcTagReaderHelper
+import com.example.nfc.ScannedTagResult
+import com.example.nfc.TagScanError
 import com.example.nfc.WifiAuthMode
 import com.example.ui.TagProgrammerViewModel
 import com.example.widget.TagPresetWidgetProvider
@@ -62,7 +68,7 @@ class WidgetAndTileTest {
     store = ActiveCardStore(context)
     store.clearCard()
     store.setReadOnly(true)
-    AppSettingsStore(context).updateSettings { com.example.data.AppSettings() }
+    AppSettingsStore(context).updateSettings { AppSettings(hasCompletedTutorial = false) }
   }
 
   @After
@@ -181,44 +187,96 @@ class WidgetAndTileTest {
   }
 
   @Test
-  fun `home shows activate and make tag options tutorial settings and disables activate when nfc off`() {
+  fun `scanned physical tag bytes are clamped to single record and saved cleanly`() = runBlocking {
+    val multiBytes =
+      NdefMessageCodec.encodeRecords(
+        listOf(
+          NdefRecordDraft.Url("https://instagram.com/taglink"),
+          NdefRecordDraft.Text("Extra", "en"),
+        )
+      )
+    val parsed = NfcTagReaderHelper.parseScannedNdefBytes(multiBytes, isReadOnly = true)
+    assertTrue(parsed is ScannedTagResult.Success)
+    val success = parsed as ScannedTagResult.Success
+    assertEquals("https://instagram.com/taglink", success.summary)
+    assertEquals(1, NdefMessageCodec.decodeRecords(success.ndefBytes).size)
+
+    val emptyResult = NfcTagReaderHelper.parseScannedNdefBytes(ByteArray(0), isReadOnly = false)
+    assertEquals(ScannedTagResult.Failure(TagScanError.EMPTY_TAG), emptyResult)
+
+    val repo = TagRepository(context, TagDatabase.getInstance(context).tagDao(), store)
+    val saved = repo.saveCopiedTagBytes(multiBytes, label = "Cloned Card", isReadOnly = true)
+    assertEquals("Cloned Card", saved.label)
+    assertEquals(1, saved.records.size)
+  }
+
+  @Test
+  fun `tutorial autostart guided make tag copy shortcuts settings and nfc guard flow`() {
     simulatedNfcStatus = NfcHardwareStatus.NFC_DISABLED
-    store.writeRecords(
-      records = listOf(NdefRecordDraft.Url("https://example.com")),
-      label = "Site",
-      isReadOnly = true,
-    )
+    val viewModel = ViewModelProvider(composeRule.activity)[TagProgrammerViewModel::class.java]
+    viewModel.refreshState()
 
-    composeRule.onNodeWithTag("home_activate_tag_button").assertIsDisplayed()
-    composeRule.onNodeWithTag("home_make_tag_button").assertIsDisplayed()
-    composeRule.onNodeWithTag("pin_widget_prompt_button").assertIsDisplayed()
-
-    composeRule.onNodeWithTag("tutorial_button").performClick()
+    // Interactive tutorial auto-starts on first launch
+    composeRule.onNodeWithTag("tutorial_overlay").assertIsDisplayed()
+    repeat(TagProgrammerViewModel.TUTORIAL_STEP_COUNT - 1) {
+      composeRule.onNodeWithTag("tutorial_next_button").performClick()
+    }
     composeRule.onNodeWithTag("tutorial_done_button").assertIsDisplayed()
     composeRule.onNodeWithTag("tutorial_done_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("tutorial_overlay").assertDoesNotExist()
+    assertTrue(AppSettingsStore(viewModel.getApplication()).readSettings().hasCompletedTutorial)
 
+    // Verify home options and Shortcuts (Home Widget + Quick Tile) and absence of "1 record per tag"
+    composeRule.onNodeWithTag("home_activate_tag_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_make_tag_button"))
+    composeRule.onNodeWithTag("home_make_tag_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_copy_tag_button"))
+    composeRule.onNodeWithTag("home_copy_tag_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_shortcuts_card"))
+    composeRule.onNodeWithTag("home_shortcuts_card").assertIsDisplayed()
+    composeRule.onNodeWithTag("pin_widget_prompt_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("pin_quick_tile_button").assertIsDisplayed()
+    composeRule.onNodeWithText("1 record per tag").assertDoesNotExist()
+
+    // Info button replays interactive tutorial; Skip closes it
+    composeRule.onNodeWithTag("tutorial_button").performClick()
+    composeRule.onNodeWithTag("tutorial_overlay").assertIsDisplayed()
+    composeRule.onNodeWithTag("tutorial_skip_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("tutorial_overlay").assertDoesNotExist()
+
+    // Pin Widget dialog from Shortcuts
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_shortcuts_card"))
     composeRule.onNodeWithTag("pin_widget_prompt_button").performClick()
     composeRule.onNodeWithTag("pin_toggle_widget_option").assertIsDisplayed()
     composeRule.onNodeWithTag("pin_preset_widget_option").assertIsDisplayed()
     composeRule.onNodeWithTag("pin_widget_cancel_button").performClick()
     composeRule.waitForIdle()
-    composeRule.onNodeWithTag("pin_widget_cancel_button").assertDoesNotExist()
 
+    // Quick Tile shortcut from Shortcuts works without crashing
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_shortcuts_card"))
+    composeRule.onNodeWithTag("pin_quick_tile_button").performClick()
+    composeRule.waitForIdle()
+
+    // Settings dark theme toggle
     composeRule.onNodeWithTag("app_settings_button").performClick()
     composeRule.waitForIdle()
-    val viewModel = ViewModelProvider(composeRule.activity)[TagProgrammerViewModel::class.java]
     composeRule.onNodeWithTag("theme_mode_dark").assertIsDisplayed()
     composeRule.onNodeWithTag("theme_mode_dark").performClick()
     composeRule.waitForIdle()
     assertEquals(ThemeMode.DARK, viewModel.uiState.value.settings.themeMode)
-    assertEquals(
-      ThemeMode.DARK,
-      AppSettingsStore(viewModel.getApplication()).readSettings().themeMode,
-    )
 
+    // Guided 2-step Make Tag: pick Instagram, then enter @username, save, verify NFC-off guard
     composeRule.onNodeWithTag("back_button").performClick()
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_make_tag_button"))
     composeRule.onNodeWithTag("home_make_tag_button").performClick()
-    composeRule.onNodeWithTag("link_url_input").performTextInput("https://taglink.test")
+    composeRule.onNodeWithTag("preset_instagram").assertIsDisplayed()
+    composeRule.onNodeWithTag("preset_link").assertIsDisplayed()
+    composeRule.onNodeWithTag("preset_contact").assertIsDisplayed()
+    composeRule.onNodeWithTag("preset_instagram").performClick()
+
+    composeRule.onNodeWithTag("instagram_handle_input").performTextInput("taglink_demo")
     composeRule.onNodeWithTag("write_card_button").performScrollTo().performClick()
     composeRule.waitUntil(3_000) {
       composeRule.onAllNodes(hasTestTag("emulation_toggle_button")).fetchSemanticsNodes().isNotEmpty()
@@ -226,5 +284,31 @@ class WidgetAndTileTest {
 
     composeRule.onNodeWithTag("nfc_disabled_banner").assertIsDisplayed()
     composeRule.onNodeWithTag("emulation_toggle_button").assertIsNotEnabled()
+    assertEquals(
+      "https://instagram.com/taglink_demo",
+      (viewModel.uiState.value.activeRecord as NdefRecordDraft.Url).url,
+    )
+
+    // Copy Tag screen: shows NFC banner when NFC off and accepts physical scanned NDEF result
+    composeRule.onNodeWithTag("back_button").performClick()
+    composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_copy_tag_button"))
+    composeRule.onNodeWithTag("home_copy_tag_button").performClick()
+    composeRule.onNodeWithTag("copy_nfc_disabled_banner").assertIsDisplayed()
+
+    val scanned =
+      NfcTagReaderHelper.parseScannedNdefBytes(
+        NdefMessageCodec.encodeRecords(listOf(NdefRecordDraft.Url("https://copied.example"))),
+        isReadOnly = true,
+      )
+    composeRule.runOnUiThread { viewModel.onPhysicalTagScanned(scanned) }
+    composeRule.onNodeWithTag("copy_scanned_result_card").assertIsDisplayed()
+    composeRule.onNodeWithTag("copy_save_tag_button").performScrollTo().performClick()
+    composeRule.waitUntil(3_000) {
+      composeRule.onAllNodes(hasTestTag("emulation_toggle_button")).fetchSemanticsNodes().isNotEmpty()
+    }
+    assertEquals(
+      "https://copied.example",
+      (viewModel.uiState.value.activeRecord as NdefRecordDraft.Url).url,
+    )
   }
 }

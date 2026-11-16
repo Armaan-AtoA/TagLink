@@ -1,34 +1,27 @@
 package com.example.ui
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddBox
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Nfc
 import androidx.compose.material.icons.outlined.Widgets
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -42,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.data.AppSettings
 import com.example.data.ThemeMode
@@ -56,6 +48,7 @@ fun SettingsScreen(
   onOpenNfcSettings: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onReplayTutorial: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val extendedColors = LocalTagExtendedColors.current
@@ -200,15 +193,20 @@ fun SettingsScreen(
           onClick = onOpenPinWidget,
           testTag = "settings_pin_widget_button",
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
-          SettingsActionRow(
-            icon = Icons.Outlined.AddBox,
-            label = stringResource(R.string.settings_add_qs_tile),
-            onClick = onRequestAddQuickTile,
-            testTag = "settings_add_qs_tile_button",
-          )
-        }
+        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
+        SettingsActionRow(
+          icon = Icons.Outlined.AddBox,
+          label = stringResource(R.string.settings_add_qs_tile),
+          onClick = onRequestAddQuickTile,
+          testTag = "settings_add_qs_tile_button",
+        )
+        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
+        SettingsActionRow(
+          icon = Icons.Outlined.Info,
+          label = stringResource(R.string.settings_replay_tutorial),
+          onClick = onReplayTutorial,
+          testTag = "settings_replay_tutorial_button",
+        )
       }
     }
   }
@@ -388,134 +386,10 @@ fun PinWidgetDialog(
         border = BorderStroke(1.dp, extendedColors.border),
         modifier =
           Modifier.fillMaxWidth()
-            .minimumInteractiveComponentSize()
             .height(48.dp)
             .testTag("pin_widget_cancel_button"),
       ) {
         Text(text = stringResource(R.string.action_cancel))
-      }
-    }
-  }
-}
-
-@Composable
-fun TutorialDialog(onDismiss: () -> Unit) {
-  val extendedColors = LocalTagExtendedColors.current
-  val steps =
-    listOf(
-      R.string.tutorial_step1_title to R.string.tutorial_step1_body,
-      R.string.tutorial_step2_title to R.string.tutorial_step2_body,
-      R.string.tutorial_step3_title to R.string.tutorial_step3_body,
-      R.string.tutorial_step4_title to R.string.tutorial_step4_body,
-      R.string.tutorial_step5_title to R.string.tutorial_step5_body,
-      R.string.tutorial_step6_title to R.string.tutorial_step6_body,
-    )
-
-  Dialog(
-    onDismissRequest = onDismiss,
-    properties = DialogProperties(usePlatformDefaultWidth = false),
-  ) {
-    Box(
-      modifier = Modifier.fillMaxSize().padding(16.dp),
-      contentAlignment = Alignment.Center,
-    ) {
-      Column(
-        modifier =
-          Modifier.fillMaxWidth()
-            .widthIn(max = 600.dp)
-            .fillMaxHeight(0.9f)
-            .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, extendedColors.border),
-      ) {
-        Row(
-          modifier =
-            Modifier.fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface)
-              .padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 6.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Outlined.Info,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.size(20.dp),
-            )
-            Text(
-              text = stringResource(R.string.tutorial_title),
-              style = MaterialTheme.typography.titleLarge,
-              color = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-          IconButton(
-            onClick = onDismiss,
-            modifier = Modifier.minimumInteractiveComponentSize().testTag("tutorial_close_icon"),
-          ) {
-            Icon(
-              imageVector = Icons.Outlined.Close,
-              contentDescription = stringResource(R.string.tutorial_close),
-            )
-          }
-        }
-
-        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
-
-        LazyColumn(
-          modifier = Modifier.weight(1f).fillMaxWidth(),
-          contentPadding = PaddingValues(14.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-          items(steps.size) { index ->
-            val (titleRes, bodyRes) = steps[index]
-            Column(
-              modifier =
-                Modifier.fillMaxWidth()
-                  .background(MaterialTheme.colorScheme.surface)
-                  .border(1.dp, extendedColors.border)
-                  .padding(12.dp),
-              verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-              Text(
-                text = stringResource(titleRes),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-              )
-              Text(
-                text = stringResource(bodyRes),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-              )
-            }
-          }
-        }
-
-        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
-
-        Box(
-          modifier =
-            Modifier.fillMaxWidth()
-              .background(MaterialTheme.colorScheme.surface)
-              .padding(12.dp),
-        ) {
-          Button(
-            onClick = onDismiss,
-            shape = MaterialTheme.shapes.small,
-            modifier =
-              Modifier.fillMaxWidth()
-                .minimumInteractiveComponentSize()
-                .height(48.dp)
-                .testTag("tutorial_done_button"),
-          ) {
-            Text(
-              text = stringResource(R.string.tutorial_close),
-              style = MaterialTheme.typography.titleMedium,
-            )
-          }
-        }
       }
     }
   }

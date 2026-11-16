@@ -21,6 +21,8 @@ import com.example.nfc.NdefUriEncoder
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
 import com.example.nfc.NfcToggleTileService
+import com.example.nfc.ScannedTagResult
+import com.example.nfc.TagScanError
 import com.example.nfc.WifiAuthMode
 import com.example.widget.WidgetSyncHelper
 import com.example.widget.WidgetType
@@ -36,11 +38,40 @@ enum class AppScreen {
   HOME,
   ACTIVATE_TAG,
   MAKE_TAG,
+  COPY_TAG,
   SETTINGS,
 }
 
+enum class MakeStep {
+  CHOOSE_TYPE,
+  FILL_DETAILS,
+}
+
+enum class TagPresetKind(
+  val title: String,
+  val subtitle: String,
+  val recordType: NdefRecordType,
+) {
+  INSTAGRAM("Instagram", "@username profile", NdefRecordType.URL),
+  LINK("Website / Link", "Any custom URL", NdefRecordType.URL),
+  WHATSAPP("WhatsApp", "Direct chat link", NdefRecordType.URL),
+  CONTACT("Contact Card", "Name, phone & email", NdefRecordType.CONTACT),
+  WIFI("Wi-Fi", "Instant network join", NdefRecordType.WIFI),
+  PHONE("Phone Call", "Dial a phone number", NdefRecordType.PHONE),
+  SMS("Text Message", "Pre-filled SMS", NdefRecordType.SMS),
+  EMAIL("Email", "Address & subject", NdefRecordType.EMAIL),
+  TEXT("Plain Text", "Note or short code", NdefRecordType.TEXT),
+  GEO("Location", "GPS map coordinates", NdefRecordType.GEO),
+  APP("Open App", "Launch Android app", NdefRecordType.APP),
+  MIME("Custom Data", "Raw MIME payload", NdefRecordType.MIME),
+}
+
 data class RecordFormState(
+  val makeStep: MakeStep = MakeStep.CHOOSE_TYPE,
+  val selectedPreset: TagPresetKind = TagPresetKind.LINK,
   val selectedType: NdefRecordType = NdefRecordType.URL,
+  val instagramHandle: String = "",
+  val whatsappPhone: String = "",
   val urlInput: String = "",
   val textInput: String = "",
   val textLang: String = "en",
@@ -68,9 +99,17 @@ data class RecordFormState(
   val mimePayload: String = "",
 )
 
+data class CopyTagUiState(
+  val scannedResult: ScannedTagResult.Success? = null,
+  val scanError: TagScanError? = null,
+  val copyLabelDraft: String = "",
+  val copyReadOnly: Boolean = true,
+)
+
 data class TagUiState(
   val currentScreen: AppScreen = AppScreen.HOME,
   val showTutorial: Boolean = false,
+  val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
   val settings: AppSettings = AppSettings(),
   val nfcStatus: NfcHardwareStatus = NfcHardwareStatus.NO_HCE_HARDWARE,
@@ -83,14 +122,23 @@ data class TagUiState(
   val cardLabelDraft: String = "",
   val makeReadOnly: Boolean = true,
   val inputError: String? = null,
+  val copyState: CopyTagUiState = CopyTagUiState(),
   val savedCards: List<SavedLinkEntity> = emptyList(),
   val statusMessage: String? = null,
 ) {
+  val isCopyScanning: Boolean
+    get() =
+      currentScreen == AppScreen.COPY_TAG &&
+        nfcStatus == NfcHardwareStatus.READY &&
+        copyState.scannedResult == null &&
+        !showTutorial
+
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
     if (other !is TagUiState) return false
     return currentScreen == other.currentScreen &&
       showTutorial == other.showTutorial &&
+      tutorialStep == other.tutorialStep &&
       showPinWidgetDialog == other.showPinWidgetDialog &&
       settings == other.settings &&
       nfcStatus == other.nfcStatus &&
@@ -103,6 +151,7 @@ data class TagUiState(
       cardLabelDraft == other.cardLabelDraft &&
       makeReadOnly == other.makeReadOnly &&
       inputError == other.inputError &&
+      copyState == other.copyState &&
       savedCards == other.savedCards &&
       statusMessage == other.statusMessage
   }
@@ -114,6 +163,7 @@ data class TagUiState(
 private data class LocalProgrammerState(
   val currentScreen: AppScreen = AppScreen.HOME,
   val showTutorial: Boolean = false,
+  val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
   val settings: AppSettings = AppSettings(),
   val nfcStatus: NfcHardwareStatus = NfcHardwareStatus.NO_HCE_HARDWARE,
@@ -126,6 +176,7 @@ private data class LocalProgrammerState(
   val cardLabelDraft: String = "",
   val makeReadOnly: Boolean = true,
   val inputError: String? = null,
+  val copyState: CopyTagUiState = CopyTagUiState(),
   val statusMessage: String? = null,
 )
 
@@ -146,6 +197,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         TagUiState(
           currentScreen = local.currentScreen,
           showTutorial = local.showTutorial,
+          tutorialStep = local.tutorialStep,
           showPinWidgetDialog = local.showPinWidgetDialog,
           settings = local.settings,
           nfcStatus = local.nfcStatus,
@@ -158,6 +210,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           cardLabelDraft = local.cardLabelDraft,
           makeReadOnly = local.makeReadOnly,
           inputError = local.inputError,
+          copyState = local.copyState,
           savedCards = saved,
           statusMessage = local.statusMessage,
         )
@@ -173,12 +226,9 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     val settings = repository.readSettings()
     val status = NfcHardwareHelper.getStatus(getApplication())
     val firstRecord = active.records.firstOrNull()
-    val initialForm =
-      when (firstRecord) {
-        is NdefRecordDraft.Url -> RecordFormState(selectedType = NdefRecordType.URL, urlInput = firstRecord.url)
-        else -> RecordFormState()
-      }
     return LocalProgrammerState(
+      showTutorial = !settings.hasCompletedTutorial,
+      tutorialStep = 0,
       settings = settings,
       nfcStatus = status,
       activeLabel = active.label,
@@ -186,8 +236,8 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
       activeNdefBytes = active.ndefMessageBytes,
       isEmulating = active.isEmulating && status == NfcHardwareStatus.READY,
       isReadOnly = active.isReadOnly,
-      form = initialForm,
-      cardLabelDraft = active.label,
+      form = RecordFormState(),
+      cardLabelDraft = "",
       makeReadOnly = settings.defaultReadOnly,
     )
   }
@@ -210,22 +260,69 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun navigateTo(screen: AppScreen) {
-    localState.update {
-      it.copy(
+    localState.update { state ->
+      val nextForm =
+        if (screen == AppScreen.MAKE_TAG && state.currentScreen != AppScreen.MAKE_TAG) {
+          RecordFormState(makeStep = MakeStep.CHOOSE_TYPE)
+        } else {
+          state.form
+        }
+      val nextLabel =
+        if (screen == AppScreen.MAKE_TAG && state.currentScreen != AppScreen.MAKE_TAG) {
+          ""
+        } else {
+          state.cardLabelDraft
+        }
+      val nextCopy =
+        if (screen == AppScreen.COPY_TAG) {
+          CopyTagUiState(copyReadOnly = state.settings.defaultReadOnly)
+        } else {
+          state.copyState
+        }
+      state.copy(
         currentScreen = screen,
         inputError = null,
+        form = nextForm,
+        cardLabelDraft = nextLabel,
+        copyState = nextCopy,
         makeReadOnly =
-          if (screen == AppScreen.MAKE_TAG) it.settings.defaultReadOnly else it.makeReadOnly,
+          if (screen == AppScreen.MAKE_TAG) state.settings.defaultReadOnly else state.makeReadOnly,
       )
     }
   }
 
   fun openTutorial() {
-    localState.update { it.copy(showTutorial = true) }
+    localState.update {
+      it.copy(
+        currentScreen = AppScreen.HOME,
+        showTutorial = true,
+        tutorialStep = 0,
+      )
+    }
+  }
+
+  fun nextTutorialStep() {
+    val current = localState.value.tutorialStep
+    if (current >= TUTORIAL_STEP_COUNT - 1) {
+      dismissTutorial()
+    } else {
+      localState.update { it.copy(tutorialStep = current + 1) }
+    }
+  }
+
+  fun prevTutorialStep() {
+    localState.update { it.copy(tutorialStep = (it.tutorialStep - 1).coerceAtLeast(0)) }
   }
 
   fun dismissTutorial() {
-    localState.update { it.copy(showTutorial = false) }
+    val updated = repository.updateSettings { it.copy(hasCompletedTutorial = true) }
+    localState.update {
+      it.copy(
+        showTutorial = false,
+        tutorialStep = 0,
+        settings = updated,
+      )
+    }
   }
 
   fun openPinWidgetDialog() {
@@ -251,9 +348,27 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  fun selectRecordType(type: NdefRecordType) {
-    localState.update {
-      it.copy(form = it.form.copy(selectedType = type), inputError = null)
+  fun selectMakePreset(preset: TagPresetKind) {
+    localState.update { state ->
+      state.copy(
+        form =
+          RecordFormState(
+            makeStep = MakeStep.FILL_DETAILS,
+            selectedPreset = preset,
+            selectedType = preset.recordType,
+          ),
+        cardLabelDraft = "",
+        inputError = null,
+      )
+    }
+  }
+
+  fun backToChooseMakeType() {
+    localState.update { state ->
+      state.copy(
+        form = state.form.copy(makeStep = MakeStep.CHOOSE_TYPE),
+        inputError = null,
+      )
     }
   }
 
@@ -272,7 +387,12 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   fun clearForm() {
     localState.update {
       it.copy(
-        form = RecordFormState(selectedType = it.form.selectedType),
+        form =
+          RecordFormState(
+            makeStep = it.form.makeStep,
+            selectedPreset = it.form.selectedPreset,
+            selectedType = it.form.selectedType,
+          ),
         cardLabelDraft = "",
         inputError = null,
       )
@@ -282,7 +402,13 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   fun applyUrlPrefix(prefix: String, suggestedLabel: String) {
     localState.update {
       it.copy(
-        form = it.form.copy(selectedType = NdefRecordType.URL, urlInput = prefix),
+        form =
+          it.form.copy(
+            makeStep = MakeStep.FILL_DETAILS,
+            selectedPreset = TagPresetKind.LINK,
+            selectedType = NdefRecordType.URL,
+            urlInput = prefix,
+          ),
         cardLabelDraft = it.cardLabelDraft.ifBlank { suggestedLabel },
         inputError = null,
       )
@@ -309,11 +435,14 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
       return
     }
 
+    val effectiveLabel =
+      state.cardLabelDraft.ifBlank { deriveFriendlyLabel(state.form, record) }
+
     viewModelScope.launch {
       val written =
         repository.programCard(
           record = record,
-          label = state.cardLabelDraft,
+          label = effectiveLabel,
           isReadOnly = state.makeReadOnly,
         )
       val app = getApplication<Application>()
@@ -337,6 +466,99 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           statusMessage = app.getString(R.string.msg_card_written),
         )
       }
+    }
+  }
+
+  fun onPhysicalTagScanned(result: ScannedTagResult) {
+    localState.update { state ->
+      when (result) {
+        is ScannedTagResult.Success ->
+          state.copy(
+            copyState =
+              CopyTagUiState(
+                scannedResult = result,
+                scanError = null,
+                copyLabelDraft = result.suggestedLabel,
+                copyReadOnly = result.isReadOnly,
+              )
+          )
+        is ScannedTagResult.Failure ->
+          state.copy(
+            copyState =
+              state.copyState.copy(
+                scannedResult = null,
+                scanError = result.reason,
+              )
+          )
+      }
+    }
+  }
+
+  fun onCopyLabelChanged(label: String) {
+    localState.update {
+      it.copy(copyState = it.copyState.copy(copyLabelDraft = label))
+    }
+  }
+
+  fun onCopyReadOnlyChanged(readOnly: Boolean) {
+    localState.update {
+      it.copy(copyState = it.copyState.copy(copyReadOnly = readOnly))
+    }
+  }
+
+  fun resetCopyScan() {
+    localState.update {
+      it.copy(copyState = CopyTagUiState(copyReadOnly = it.settings.defaultReadOnly))
+    }
+  }
+
+  fun saveScannedTag() {
+    val state = localState.value
+    val scanned = state.copyState.scannedResult ?: return
+    val app = getApplication<Application>()
+    val label = state.copyState.copyLabelDraft.trim().ifBlank { scanned.suggestedLabel }
+
+    viewModelScope.launch {
+      val saved =
+        repository.saveCopiedTagBytes(
+          ndefBytes = scanned.ndefBytes,
+          label = label,
+          isReadOnly = state.copyState.copyReadOnly,
+        )
+      val nfcStatus = NfcHardwareHelper.getStatus(app)
+      val finalSnapshot =
+        if (state.settings.autoActivateOnWrite && nfcStatus == NfcHardwareStatus.READY) {
+          repository.setEmulating(true)
+        } else {
+          saved
+        }
+      localState.update {
+        it.copy(
+          nfcStatus = nfcStatus,
+          activeLabel = finalSnapshot.label,
+          activeRecord = finalSnapshot.records.firstOrNull(),
+          activeNdefBytes = finalSnapshot.ndefMessageBytes,
+          isEmulating = finalSnapshot.isEmulating,
+          isReadOnly = finalSnapshot.isReadOnly,
+          copyState = CopyTagUiState(copyReadOnly = state.settings.defaultReadOnly),
+          currentScreen = AppScreen.ACTIVATE_TAG,
+          statusMessage = app.getString(R.string.msg_card_copied),
+        )
+      }
+    }
+  }
+
+  fun duplicateSavedCard(card: SavedLinkEntity) {
+    val firstRecord = NdefMessageCodec.decodeRecords(card.ndefBytes).firstOrNull()
+    val populatedForm = formFromDraft(firstRecord)
+    localState.update {
+      it.copy(
+        currentScreen = AppScreen.MAKE_TAG,
+        form = populatedForm,
+        cardLabelDraft = "${card.label} Copy",
+        makeReadOnly = card.isReadOnly,
+        inputError = null,
+      )
     }
   }
 
@@ -365,7 +587,6 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         activeNdefBytes = finalSnapshot.ndefMessageBytes,
         isEmulating = finalSnapshot.isEmulating,
         isReadOnly = finalSnapshot.isReadOnly,
-        cardLabelDraft = finalSnapshot.label,
         inputError = null,
         statusMessage = notice,
       )
@@ -439,20 +660,35 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun requestAddQuickTile() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
     val app = getApplication<Application>()
-    val statusBarManager = app.getSystemService(StatusBarManager::class.java) ?: return
-    statusBarManager.requestAddTileService(
-      ComponentName(app, NfcToggleTileService::class.java),
-      app.getString(R.string.qs_tile_label),
-      Icon.createWithResource(app, R.drawable.ic_qs_nfc_card),
-      app.mainExecutor,
-    ) { resultCode ->
-      if (resultCode == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
-        resultCode == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
-      ) {
-        localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_added)) }
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
+      return
+    }
+    val statusBarManager = app.getSystemService(StatusBarManager::class.java)
+    if (statusBarManager == null) {
+      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
+      return
+    }
+    runCatching {
+      statusBarManager.requestAddTileService(
+        ComponentName(app, NfcToggleTileService::class.java),
+        app.getString(R.string.qs_tile_label),
+        Icon.createWithResource(app, R.drawable.ic_qs_nfc_card),
+        app.mainExecutor,
+      ) { resultCode ->
+        val msg =
+          when (resultCode) {
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ->
+              app.getString(R.string.msg_qs_tile_added)
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED ->
+              app.getString(R.string.msg_qs_tile_already)
+            else -> app.getString(R.string.msg_qs_tile_manual)
+          }
+        localState.update { it.copy(statusMessage = msg) }
       }
+    }.onFailure {
+      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
     }
   }
 
@@ -460,10 +696,176 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     localState.update { it.copy(statusMessage = null) }
   }
 
+  private fun deriveFriendlyLabel(form: RecordFormState, record: NdefRecordDraft): String =
+    when (form.selectedPreset) {
+      TagPresetKind.INSTAGRAM -> {
+        val handle =
+          form.instagramHandle.trim().removePrefix("@").substringAfter("instagram.com/").substringBefore('/')
+        if (handle.isNotBlank()) "Instagram (@$handle)" else "Instagram"
+      }
+      TagPresetKind.WHATSAPP -> "WhatsApp"
+      else -> when (record) {
+        is NdefRecordDraft.Url -> ""
+        is NdefRecordDraft.Text -> "Text Note"
+        is NdefRecordDraft.Contact -> record.fullName
+        is NdefRecordDraft.Wifi -> "${record.ssid} Wi-Fi"
+        is NdefRecordDraft.Email -> record.address
+        is NdefRecordDraft.Phone -> record.number
+        is NdefRecordDraft.Sms -> "SMS ${record.number}"
+        is NdefRecordDraft.Geo -> record.label.ifBlank { "Location" }
+        is NdefRecordDraft.AppLaunch -> record.packageName
+        is NdefRecordDraft.CustomMime -> record.mimeType
+      }
+    }
+
+  private fun formFromDraft(draft: NdefRecordDraft?): RecordFormState =
+    when (draft) {
+      is NdefRecordDraft.Url -> {
+        val url = draft.url
+        when {
+          url.contains("instagram.com/", ignoreCase = true) ->
+            RecordFormState(
+              makeStep = MakeStep.FILL_DETAILS,
+              selectedPreset = TagPresetKind.INSTAGRAM,
+              selectedType = NdefRecordType.URL,
+              instagramHandle = url.substringAfter("instagram.com/").trim('/'),
+            )
+          url.contains("wa.me/", ignoreCase = true) ->
+            RecordFormState(
+              makeStep = MakeStep.FILL_DETAILS,
+              selectedPreset = TagPresetKind.WHATSAPP,
+              selectedType = NdefRecordType.URL,
+              whatsappPhone = url.substringAfter("wa.me/").trim('/'),
+            )
+          else ->
+            RecordFormState(
+              makeStep = MakeStep.FILL_DETAILS,
+              selectedPreset = TagPresetKind.LINK,
+              selectedType = NdefRecordType.URL,
+              urlInput = url,
+            )
+        }
+      }
+      is NdefRecordDraft.Text ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.TEXT,
+          selectedType = NdefRecordType.TEXT,
+          textInput = draft.text,
+          textLang = draft.languageCode,
+        )
+      is NdefRecordDraft.Contact ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.CONTACT,
+          selectedType = NdefRecordType.CONTACT,
+          contactName = draft.fullName,
+          contactOrg = draft.organization,
+          contactTitle = draft.title,
+          contactPhone = draft.phone,
+          contactEmail = draft.email,
+          contactWebsite = draft.website,
+          contactNote = draft.note,
+        )
+      is NdefRecordDraft.Wifi ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.WIFI,
+          selectedType = NdefRecordType.WIFI,
+          wifiSsid = draft.ssid,
+          wifiPassword = draft.password,
+          wifiAuth = draft.authMode,
+        )
+      is NdefRecordDraft.Email ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.EMAIL,
+          selectedType = NdefRecordType.EMAIL,
+          emailAddress = draft.address,
+          emailSubject = draft.subject,
+          emailBody = draft.body,
+        )
+      is NdefRecordDraft.Phone ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.PHONE,
+          selectedType = NdefRecordType.PHONE,
+          phoneNumber = draft.number,
+        )
+      is NdefRecordDraft.Sms ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.SMS,
+          selectedType = NdefRecordType.SMS,
+          smsNumber = draft.number,
+          smsMessage = draft.message,
+        )
+      is NdefRecordDraft.Geo ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.GEO,
+          selectedType = NdefRecordType.GEO,
+          geoLat = draft.latitude,
+          geoLon = draft.longitude,
+          geoLabel = draft.label,
+        )
+      is NdefRecordDraft.AppLaunch ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.APP,
+          selectedType = NdefRecordType.APP,
+          appPackage = draft.packageName,
+        )
+      is NdefRecordDraft.CustomMime ->
+        RecordFormState(
+          makeStep = MakeStep.FILL_DETAILS,
+          selectedPreset = TagPresetKind.MIME,
+          selectedType = NdefRecordType.MIME,
+          mimeType = draft.mimeType,
+          mimePayload = draft.payload,
+        )
+      null -> RecordFormState(makeStep = MakeStep.CHOOSE_TYPE)
+    }
+
   private fun buildValidatedRecord(form: RecordFormState): NdefRecordDraft? {
     val app = getApplication<Application>()
-    return when (form.selectedType) {
-      NdefRecordType.URL -> {
+    return when (form.selectedPreset) {
+      TagPresetKind.INSTAGRAM -> {
+        val raw = form.instagramHandle.trim()
+        val url =
+          when {
+            raw.isBlank() -> ""
+            raw.startsWith("http://", true) || raw.startsWith("https://", true) -> raw
+            raw.contains("instagram.com/", true) -> NdefUriEncoder.normalizeUri(raw)
+            else -> "https://instagram.com/${raw.removePrefix("@")}"
+          }
+        if (url.isBlank() || !NdefUriEncoder.isValidUri(url)) {
+          setError(app.getString(R.string.error_invalid_instagram))
+          null
+        } else {
+          NdefRecordDraft.Url(url)
+        }
+      }
+      TagPresetKind.WHATSAPP -> {
+        val raw = form.whatsappPhone.trim()
+        val url =
+          when {
+            raw.isBlank() -> ""
+            raw.startsWith("http://", true) || raw.startsWith("https://", true) -> raw
+            raw.contains("wa.me/", true) -> NdefUriEncoder.normalizeUri(raw)
+            else -> {
+              val digits = raw.filter { it.isDigit() }
+              if (digits.length >= 6) "https://wa.me/$digits" else ""
+            }
+          }
+        if (url.isBlank() || !NdefUriEncoder.isValidUri(url)) {
+          setError(app.getString(R.string.error_invalid_whatsapp))
+          null
+        } else {
+          NdefRecordDraft.Url(url)
+        }
+      }
+      TagPresetKind.LINK -> {
         val normalized = NdefUriEncoder.normalizeUri(form.urlInput)
         if (!NdefUriEncoder.isValidUri(normalized)) {
           setError(app.getString(R.string.error_invalid_url))
@@ -472,7 +874,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           NdefRecordDraft.Url(normalized)
         }
       }
-      NdefRecordType.TEXT -> {
+      TagPresetKind.TEXT -> {
         if (form.textInput.isBlank()) {
           setError(app.getString(R.string.error_empty_text))
           null
@@ -483,7 +885,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.CONTACT -> {
+      TagPresetKind.CONTACT -> {
         if (form.contactName.isBlank() && form.contactPhone.isBlank() && form.contactEmail.isBlank()) {
           setError(app.getString(R.string.error_empty_contact))
           null
@@ -499,7 +901,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.WIFI -> {
+      TagPresetKind.WIFI -> {
         if (form.wifiSsid.isBlank()) {
           setError(app.getString(R.string.error_empty_wifi_ssid))
           null
@@ -511,7 +913,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.EMAIL -> {
+      TagPresetKind.EMAIL -> {
         if (form.emailAddress.isBlank() || !form.emailAddress.contains("@")) {
           setError(app.getString(R.string.error_empty_email))
           null
@@ -523,7 +925,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.PHONE -> {
+      TagPresetKind.PHONE -> {
         if (form.phoneNumber.isBlank()) {
           setError(app.getString(R.string.error_empty_phone))
           null
@@ -531,7 +933,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           NdefRecordDraft.Phone(form.phoneNumber.trim())
         }
       }
-      NdefRecordType.SMS -> {
+      TagPresetKind.SMS -> {
         if (form.smsNumber.isBlank()) {
           setError(app.getString(R.string.error_empty_phone))
           null
@@ -542,7 +944,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.GEO -> {
+      TagPresetKind.GEO -> {
         val lat = form.geoLat.trim().toDoubleOrNull()
         val lon = form.geoLon.trim().toDoubleOrNull()
         if (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0) {
@@ -556,7 +958,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           )
         }
       }
-      NdefRecordType.APP -> {
+      TagPresetKind.APP -> {
         val pkg = form.appPackage.trim()
         if (pkg.isBlank() || !pkg.contains('.')) {
           setError(app.getString(R.string.error_empty_package))
@@ -565,7 +967,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           NdefRecordDraft.AppLaunch(pkg)
         }
       }
-      NdefRecordType.MIME -> {
+      TagPresetKind.MIME -> {
         if (form.mimeType.isBlank() || form.mimePayload.isBlank()) {
           setError(app.getString(R.string.error_empty_mime))
           null
@@ -581,5 +983,9 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
   private fun setError(message: String) {
     localState.update { it.copy(inputError = message) }
+  }
+
+  companion object {
+    const val TUTORIAL_STEP_COUNT = 5
   }
 }
