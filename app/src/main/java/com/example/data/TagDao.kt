@@ -14,9 +14,6 @@ interface TagDao {
   @Query("SELECT * FROM saved_cards WHERE id = :id LIMIT 1")
   suspend fun getSavedLinkById(id: Long): SavedLinkEntity?
 
-  @Query("SELECT * FROM saved_cards WHERE ndefBytes = :ndefBytes LIMIT 1")
-  suspend fun findByNdefBytes(ndefBytes: ByteArray): SavedLinkEntity?
-
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun upsertSavedLink(link: SavedLinkEntity)
 

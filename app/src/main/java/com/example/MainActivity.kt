@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
             adapter.enableReaderMode(
               this@MainActivity,
               { tag ->
-                val result = NfcTagReaderHelper.readPhysicalTag(tag, this@MainActivity)
+                val result = NfcTagReaderHelper.readPhysicalTag(tag)
                 runOnUiThread { viewModel.onPhysicalTagScanned(result) }
               },
               flags,

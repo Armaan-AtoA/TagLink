@@ -1,6 +1,5 @@
 package com.example.nfc
 
-import android.content.Context
 import android.nfc.NdefMessage
 import android.nfc.Tag
 import android.nfc.tech.Ndef
@@ -45,40 +44,27 @@ enum class TagScanError {
 
 object NfcTagReaderHelper {
 
-  fun readPhysicalTag(tag: Tag, context: Context? = null): ScannedTagResult {
+  fun readPhysicalTag(tag: Tag): ScannedTagResult {
     val ndef = Ndef.get(tag) ?: return ScannedTagResult.Failure(TagScanError.NOT_NDEF_FORMATTED)
-    var rawBytesForBridge: ByteArray? = null
-    val result =
-      try {
-        ndef.connect()
-        val message: NdefMessage? = ndef.ndefMessage ?: ndef.cachedNdefMessage
-        val isReadOnly = !ndef.isWritable
-        if (message == null) {
-          ScannedTagResult.Failure(TagScanError.EMPTY_TAG)
-        } else {
-          rawBytesForBridge = message.toByteArray()
-          parseScannedNdefBytes(rawBytesForBridge, isReadOnly = isReadOnly)
-        }
-      } catch (_: Exception) {
-        val cached = ndef.cachedNdefMessage
-        if (cached != null) {
-          rawBytesForBridge = cached.toByteArray()
-          parseScannedNdefBytes(rawBytesForBridge, isReadOnly = !ndef.isWritable)
-        } else {
-          ScannedTagResult.Failure(TagScanError.READ_FAILED)
-        }
-      } finally {
-        runCatching { ndef.close() }
+    return try {
+      ndef.connect()
+      val message: NdefMessage? = ndef.ndefMessage ?: ndef.cachedNdefMessage
+      val isReadOnly = !ndef.isWritable
+      if (message == null) {
+        ScannedTagResult.Failure(TagScanError.EMPTY_TAG)
+      } else {
+        parseScannedNdefBytes(message.toByteArray(), isReadOnly = isReadOnly)
       }
-
-    if (context != null && rawBytesForBridge != null) {
-      SilentPeerBridgeCoordinator.replyOverIsoDepIfBridge(
-        context = context,
-        tag = tag,
-        rawNdefBytes = rawBytesForBridge,
-      )
+    } catch (_: Exception) {
+      val cached = ndef.cachedNdefMessage
+      if (cached != null) {
+        parseScannedNdefBytes(cached.toByteArray(), isReadOnly = !ndef.isWritable)
+      } else {
+        ScannedTagResult.Failure(TagScanError.READ_FAILED)
+      }
+    } finally {
+      runCatching { ndef.close() }
     }
-    return result
   }
 
   fun parseScannedNdefBytes(

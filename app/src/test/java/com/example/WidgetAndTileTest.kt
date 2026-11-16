@@ -26,6 +26,7 @@ import com.example.data.TagDatabase
 import com.example.data.TagRepository
 import com.example.data.ThemeMode
 import com.example.nfc.ActiveCardStore
+import com.example.nfc.NdefBridgeCodec
 import com.example.nfc.NdefMessageCodec
 import com.example.nfc.NdefRecordDraft
 import com.example.nfc.NfcHardwareHelper
@@ -401,26 +402,63 @@ class WidgetAndTileTest {
   }
 
   @Test
-  fun `silent peer bridge saves incoming peer card cleanly without altering active card`() = runBlocking {
+  fun `app-to-app bridge executes tapped tag action on both phones without adding new cards`() = runBlocking {
     simulatedNfcStatus = NfcHardwareStatus.READY
-    val ownRecord = NdefRecordDraft.Url("https://instagram.com/owner")
-    store.writeRecords(records = listOf(ownRecord), label = "Owner", isReadOnly = true)
+    com.example.nfc.SilentPeerBridgeCoordinator.resetDedupeForTest()
 
-    val peerNdef = NdefMessageCodec.encodeRecords(listOf(NdefRecordDraft.Url("https://linkedin.com/in/peer_user")))
-    val saved =
-      com.example.nfc.SilentPeerBridgeCoordinator.savePeerCardInternal(
-        context = context,
-        rawNdefBytes = peerNdef,
-        suggestedLabel = "LinkedIn (@peer_user)",
-        senderId = "other-device-99",
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val dao = TagDatabase.getInstance(context).tagDao()
+    val beforeCount = dao.observeSavedLinks().first().size
+
+    // Phone A (emulating) has Owner card loaded
+    val ownerRecord = NdefRecordDraft.Url("https://instagram.com/owner_a")
+    store.writeRecords(records = listOf(ownerRecord), label = "Owner", isReadOnly = true)
+    store.setEmulating(true)
+
+    // 1. Receiving phone (Phone B) gets tapshare://exchange URI from Phone A -> executes Phone A's action, adds 0 cards
+    val peerARecordBytes = NdefMessageCodec.encodeRecords(listOf(ownerRecord))
+    val bridgeUriFromA =
+      NdefBridgeCodec.buildBridgeUri(
+        primaryNdefBytes = peerARecordBytes,
+        label = "Instagram (@owner_a)",
+        senderId = "phone-a-id",
       )
-    assertTrue(saved)
+    val bridgeIntent =
+      Intent(android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED, Uri.parse(bridgeUriFromA))
+    org.robolectric.Robolectric.buildActivity(com.example.nfc.BridgeExchangeActivity::class.java, bridgeIntent).create()
 
-    val allCards = TagDatabase.getInstance(context).tagDao().observeSavedLinks().first()
-    val peerCard = allCards.firstOrNull { it.label == "LinkedIn (@peer_user)" }
-    assertNotNull(peerCard)
-    assertArrayEquals(peerNdef, peerCard!!.ndefBytes)
-    // Own active card remains unchanged
+    val startedOnB = shadowOf(app).nextStartedActivity
+    assertNotNull(startedOnB)
+    assertEquals(Intent.ACTION_VIEW, startedOnB!!.action)
+    assertEquals("https://instagram.com/owner_a", startedOnB.dataString)
+    assertEquals(beforeCount, dao.observeSavedLinks().first().size)
+
+    // 2. Emulating phone (Phone A) receives Phone B's return card via NdefHostApduService -> executes Phone B's action, adds 0 cards
+    val service = org.robolectric.Robolectric.setupService(com.example.nfc.NdefHostApduService::class.java)
+    val peerBPacket =
+      NdefBridgeCodec.encodePeerPacket(
+        com.example.nfc.PeerExchangePacket(
+          senderId = "phone-b-id",
+          label = "LinkedIn (@peer_b)",
+          ndefBytes = NdefMessageCodec.encodeRecords(listOf(NdefRecordDraft.Url("https://linkedin.com/in/peer_b"))),
+        )
+      )
+    val peerExchangeApdu =
+      byteArrayOf(
+        com.example.nfc.T4tApduEngine.CLA_PROPRIETARY.toByte(),
+        com.example.nfc.T4tApduEngine.INS_PEER_EXCHANGE.toByte(),
+        0x00,
+        0x00,
+        peerBPacket.size.toByte(),
+      ) + peerBPacket
+    val apduResponse = service.processCommandApdu(peerExchangeApdu, null)
+    assertTrue(apduResponse.size >= 2)
+
+    val startedOnA = shadowOf(app).nextStartedActivity
+    assertNotNull(startedOnA)
+    assertEquals(Intent.ACTION_VIEW, startedOnA!!.action)
+    assertEquals("https://linkedin.com/in/peer_b", startedOnA.dataString)
+    assertEquals(beforeCount, dao.observeSavedLinks().first().size)
     assertEquals("Owner", store.readSnapshot().label)
   }
 }

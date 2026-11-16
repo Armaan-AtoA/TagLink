@@ -65,10 +65,9 @@ class NdefHostApduService : HostApduService() {
 
     if (outcome.completedPeerExchange != null) {
       val exchanged = outcome.completedPeerExchange
-      SilentPeerBridgeCoordinator.recordIncomingPeerCardAsync(
+      SilentPeerBridgeCoordinator.executeIncomingPeerCard(
         context = applicationContext,
         rawNdefBytes = exchanged.ndefBytes,
-        suggestedLabel = exchanged.label,
         senderId = exchanged.senderId,
       )
     }

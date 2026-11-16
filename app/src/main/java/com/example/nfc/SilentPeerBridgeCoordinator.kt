@@ -4,38 +4,51 @@ import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
 import com.example.data.AppSettingsStore
-import com.example.data.SavedLinkEntity
-import com.example.data.TagDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 object SilentPeerBridgeCoordinator {
 
   private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private const val MAX_ISO_DEP_CHUNK = 220
+  private const val DEDUPE_WINDOW_MS = 1_500L
+  private const val ISO_DEP_EXCHANGE_TIMEOUT_MS = 450L
+
+  @Volatile private var lastExecutedKey: String? = null
+  @Volatile private var lastExecutedAtMs: Long = 0L
 
   fun handleIncomingBridgeTap(
     context: Context,
     uriString: String?,
     tag: Tag?,
+    onComplete: () -> Unit = {},
   ) {
     val appContext = context.applicationContext
-    bridgeScope.launch {
-      val parsed = NdefBridgeCodec.parseBridgeUri(uriString)
+    val parsed = NdefBridgeCodec.parseBridgeUri(uriString)
+    val settings = AppSettingsStore(appContext).readSettings()
+    val snapshot = ActiveCardStore(appContext).readSnapshot()
+
+    if (tag == null) {
       if (parsed != null && parsed.primaryNdefBytes.isNotEmpty()) {
-        savePeerCardInternal(
-          context = appContext,
+        executeIncomingPeerCard(
+          context = context,
           rawNdefBytes = parsed.primaryNdefBytes,
-          suggestedLabel = parsed.label,
           senderId = parsed.senderId,
         )
       }
+      onComplete()
+      return
+    }
 
-      if (tag != null) {
-        val settings = AppSettingsStore(appContext).readSettings()
-        val snapshot = ActiveCardStore(appContext).readSnapshot()
+    bridgeScope.launch {
+      try {
+        var targetBytes = parsed?.primaryNdefBytes
+        var targetSenderId = parsed?.senderId.orEmpty()
+
         if (settings.multiRecordBridgeEnabled && snapshot.hasPayload) {
           val replyPacket =
             NdefBridgeCodec.encodePeerPacket(
@@ -45,64 +58,36 @@ object SilentPeerBridgeCoordinator {
                 ndefBytes = snapshot.ndefMessageBytes,
               )
             )
-          val peerReply = sendReturnCardOverIsoDep(tag, replyPacket)
-          if (peerReply != null && parsed == null) {
-            savePeerCardInternal(
-              context = appContext,
-              rawNdefBytes = peerReply.ndefBytes,
-              suggestedLabel = peerReply.label,
-              senderId = peerReply.senderId,
+          val peerReply =
+            withTimeoutOrNull(ISO_DEP_EXCHANGE_TIMEOUT_MS) {
+              sendReturnCardOverIsoDep(tag, replyPacket)
+            }
+          if ((targetBytes == null || targetBytes.isEmpty()) && peerReply != null) {
+            targetBytes = peerReply.ndefBytes
+            targetSenderId = peerReply.senderId
+          }
+        }
+
+        if (targetBytes != null && targetBytes.isNotEmpty()) {
+          withContext(Dispatchers.Main.immediate) {
+            executeIncomingPeerCard(
+              context = context,
+              rawNdefBytes = targetBytes,
+              senderId = targetSenderId,
             )
           }
+        }
+      } finally {
+        withContext(Dispatchers.Main.immediate) {
+          onComplete()
         }
       }
     }
   }
 
-  fun replyOverIsoDepIfBridge(
-    context: Context,
-    tag: Tag,
-    rawNdefBytes: ByteArray,
-  ) {
-    if (!NdefBridgeCodec.isBridgeMessage(rawNdefBytes)) return
-    val appContext = context.applicationContext
-    val settings = AppSettingsStore(appContext).readSettings()
-    if (!settings.multiRecordBridgeEnabled) return
-    val snapshot = ActiveCardStore(appContext).readSnapshot()
-    if (!snapshot.hasPayload) return
-
-    val replyPacket =
-      NdefBridgeCodec.encodePeerPacket(
-        PeerExchangePacket(
-          senderId = settings.bridgeDeviceId,
-          label = snapshot.label,
-          ndefBytes = snapshot.ndefMessageBytes,
-        )
-      )
-    sendReturnCardOverIsoDep(tag, replyPacket)
-  }
-
-  fun recordIncomingPeerCardAsync(
+  fun executeIncomingPeerCard(
     context: Context,
     rawNdefBytes: ByteArray,
-    suggestedLabel: String,
-    senderId: String,
-  ) {
-    val appContext = context.applicationContext
-    bridgeScope.launch {
-      savePeerCardInternal(
-        context = appContext,
-        rawNdefBytes = rawNdefBytes,
-        suggestedLabel = suggestedLabel,
-        senderId = senderId,
-      )
-    }
-  }
-
-  internal suspend fun savePeerCardInternal(
-    context: Context,
-    rawNdefBytes: ByteArray,
-    suggestedLabel: String,
     senderId: String,
   ): Boolean {
     if (rawNdefBytes.isEmpty()) return false
@@ -111,46 +96,34 @@ object SilentPeerBridgeCoordinator {
       return false
     }
 
-    val (canonicalBytes, embeddedLabel) = NdefBridgeCodec.unwrapScannedMessage(rawNdefBytes)
+    val (canonicalBytes, _) = NdefBridgeCodec.unwrapScannedMessage(rawNdefBytes)
     if (canonicalBytes.isEmpty() || canonicalBytes.size > NdefMessageCodec.MAX_NDEF_BYTES) {
       return false
     }
 
-    val records = NdefMessageCodec.decodeRecords(canonicalBytes)
-    val firstRecord = records.firstOrNull() ?: return false
+    val firstRecord = NdefMessageCodec.decodeRecords(canonicalBytes).firstOrNull() ?: return false
     if (firstRecord is NdefRecordDraft.Url && NdefBridgeCodec.isBridgeUri(firstRecord.url)) {
       return false
     }
 
-    val summary = NdefMessageCodec.summarizeRecords(records)
-    val resolvedLabel =
-      suggestedLabel.trim().ifBlank {
-        embeddedLabel?.trim().orEmpty().ifBlank { deriveCleanCardLabel(firstRecord) }
-      }
-
-    val dao = TagDatabase.getInstance(context).tagDao()
-    val existing = dao.findByNdefBytes(canonicalBytes)
+    val key = "${canonicalBytes.contentHashCode()}:$senderId"
     val now = System.currentTimeMillis()
-    val entity =
-      if (existing != null) {
-        existing.copy(
-          label = existing.label.ifBlank { resolvedLabel },
-          summary = summary,
-          lastProgrammedAt = now,
-        )
-      } else {
-        SavedLinkEntity(
-          label = resolvedLabel,
-          summary = summary,
-          recordCount = 1,
-          ndefBytes = canonicalBytes,
-          ndefByteSize = canonicalBytes.size,
-          isReadOnly = true,
-          lastProgrammedAt = now,
-        )
+    synchronized(this) {
+      if (lastExecutedKey == key && (now - lastExecutedAtMs) < DEDUPE_WINDOW_MS) {
+        return false
       }
-    dao.upsertSavedLink(entity)
-    return true
+      lastExecutedKey = key
+      lastExecutedAtMs = now
+    }
+
+    return NdefActionExecutor.execute(context, canonicalBytes)
+  }
+
+  internal fun resetDedupeForTest() {
+    synchronized(this) {
+      lastExecutedKey = null
+      lastExecutedAtMs = 0L
+    }
   }
 
   private fun sendReturnCardOverIsoDep(tag: Tag, packetBytes: ByteArray): PeerExchangePacket? {
@@ -210,40 +183,4 @@ object SilentPeerBridgeCoordinator {
     response.size >= 2 &&
       response[response.size - 2] == 0x90.toByte() &&
       response[response.size - 1] == 0x00.toByte()
-
-  private fun deriveCleanCardLabel(record: NdefRecordDraft): String =
-    when (record) {
-      is NdefRecordDraft.Url -> {
-        val host =
-          record.url.substringAfter("://", record.url)
-            .substringBefore('/')
-            .removePrefix("www.")
-            .lowercase()
-        when {
-          host.contains("instagram.com") -> "Instagram"
-          host.contains("wa.me") || host.contains("whatsapp.com") -> "WhatsApp"
-          host.contains("tiktok.com") -> "TikTok"
-          host.contains("linkedin.com") -> "LinkedIn"
-          host.contains("x.com") || host.contains("twitter.com") -> "X"
-          host.contains("github.com") -> "GitHub"
-          host.contains("youtube.com") || host.contains("youtu.be") -> "YouTube"
-          host.contains("threads.net") -> "Threads"
-          host.contains("snapchat.com") -> "Snapchat"
-          host.contains("facebook.com") -> "Facebook"
-          host.contains("discord.gg") || host.contains("discord.com") -> "Discord"
-          host.contains("twitch.tv") -> "Twitch"
-          host.isNotBlank() -> host
-          else -> "URL Card"
-        }
-      }
-      is NdefRecordDraft.Text -> "Text"
-      is NdefRecordDraft.Contact -> record.fullName.ifBlank { "Contact" }
-      is NdefRecordDraft.Wifi -> record.ssid
-      is NdefRecordDraft.Email -> record.address
-      is NdefRecordDraft.Phone -> record.number
-      is NdefRecordDraft.Sms -> record.number
-      is NdefRecordDraft.Geo -> record.label.ifBlank { "Location" }
-      is NdefRecordDraft.AppLaunch -> record.packageName
-      is NdefRecordDraft.CustomMime -> record.mimeType
-    }
 }

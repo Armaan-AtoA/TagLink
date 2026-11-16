@@ -12,25 +12,29 @@ class BridgeExchangeActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     dispatchBridgeIntent(intent)
-    finishSilently()
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     dispatchBridgeIntent(intent)
-    finishSilently()
   }
 
   private fun dispatchBridgeIntent(incomingIntent: Intent?) {
-    if (incomingIntent == null) return
+    if (incomingIntent == null) {
+      finishSilently()
+      return
+    }
     val uriString = incomingIntent.dataString
     val tag = extractNfcTag(incomingIntent)
     if (!uriString.isNullOrBlank() || tag != null) {
       SilentPeerBridgeCoordinator.handleIncomingBridgeTap(
-        context = applicationContext,
+        context = this,
         uriString = uriString,
         tag = tag,
+        onComplete = { finishSilently() },
       )
+    } else {
+      finishSilently()
     }
   }
 
