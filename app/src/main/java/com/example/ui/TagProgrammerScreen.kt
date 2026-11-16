@@ -1,10 +1,13 @@
 package com.example.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -99,6 +103,7 @@ fun TagProgrammerScreen(
   onSelectMakePreset: (TagPresetKind) -> Unit,
   onSelectSocialPlatform: (SocialPlatform) -> Unit,
   onChangeMakeType: () -> Unit,
+  onImportContactUri: (Uri) -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onCardLabelChanged: (String) -> Unit,
   onMakeReadOnlyChanged: (Boolean) -> Unit,
@@ -123,6 +128,7 @@ fun TagProgrammerScreen(
   onRequestAddQuickTile: () -> Unit,
   onConsumeStatusMessage: () -> Unit,
 ) {
+  val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val extendedColors = LocalTagExtendedColors.current
   val tutorialBounds = remember { mutableStateMapOf<TutorialTarget, Rect>() }
@@ -137,6 +143,20 @@ fun TagProgrammerScreen(
           onUpdateCardCoverPhoto(cardId, uri)
         }
       },
+    )
+  val pickContactLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.PickContact(),
+      onResult = { uri ->
+        if (uri != null) {
+          onImportContactUri(uri)
+        }
+      },
+    )
+  val contactsPermissionLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.RequestPermission(),
+      onResult = { _ -> pickContactLauncher.launch(null) },
     )
 
   LaunchedEffect(state.statusMessage) {
@@ -246,6 +266,18 @@ fun TagProgrammerScreen(
                   onSelectSocialPlatform = onSelectSocialPlatform,
                   onChangeMakeType = onChangeMakeType,
                   onOpenCopyTag = { onNavigate(AppScreen.COPY_TAG) },
+                  onPickContact = {
+                    val granted =
+                      ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_CONTACTS,
+                      ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                      pickContactLauncher.launch(null)
+                    } else {
+                      contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                    }
+                  },
                   onUpdateForm = onUpdateForm,
                   onCardLabelChanged = onCardLabelChanged,
                   onMakeReadOnlyChanged = onMakeReadOnlyChanged,

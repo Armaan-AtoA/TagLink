@@ -302,10 +302,13 @@ class WidgetAndTileTest {
     composeRule.waitForIdle()
     assertTrue(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
 
-    // Guided 3-step Make Tag: Make Tag -> Socials -> Instagram -> @username -> Save Tag
+    // Guided 3-step Make Tag: verify Contact Card shows Pick from Contacts, then Socials -> Instagram -> @username -> Save Tag
     composeRule.onNodeWithTag("back_button").performClick()
     composeRule.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_make_tag_button"))
     composeRule.onNodeWithTag("home_make_tag_button").performClick()
+    composeRule.onNodeWithTag("preset_contact").assertIsDisplayed().performClick()
+    composeRule.onNodeWithTag("pick_contact_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("make_change_type_button").performClick()
     composeRule.onNodeWithTag("preset_socials").assertIsDisplayed()
     composeRule.onNodeWithTag("preset_link").assertIsDisplayed()
     composeRule.onNodeWithTag("preset_socials").performClick()

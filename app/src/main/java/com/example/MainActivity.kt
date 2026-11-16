@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
           onSelectMakePreset = viewModel::selectMakePreset,
           onSelectSocialPlatform = viewModel::selectSocialPlatform,
           onChangeMakeType = viewModel::backToPreviousMakeStep,
+          onImportContactUri = viewModel::importContactUri,
           onUpdateForm = viewModel::updateForm,
           onCardLabelChanged = viewModel::onCardLabelChanged,
           onMakeReadOnlyChanged = viewModel::onMakeReadOnlyChanged,

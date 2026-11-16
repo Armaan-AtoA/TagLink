@@ -15,6 +15,7 @@ import com.example.data.SavedLinkEntity
 import com.example.data.TagDatabase
 import com.example.data.TagRepository
 import com.example.nfc.ActiveCardStore
+import com.example.nfc.ContactBookImporter
 import com.example.nfc.NdefMessageCodec
 import com.example.nfc.NdefRecordDraft
 import com.example.nfc.NdefRecordType
@@ -27,6 +28,7 @@ import com.example.nfc.TagScanError
 import com.example.nfc.WifiAuthMode
 import com.example.widget.WidgetSyncHelper
 import com.example.widget.WidgetType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class AppScreen {
   HOME,
@@ -490,6 +493,39 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         form = it.form.copy(selectedType = NdefRecordType.APP, appPackage = packageName),
         inputError = null,
       )
+    }
+  }
+
+  fun importContactUri(uri: Uri) {
+    val app = getApplication<Application>()
+    viewModelScope.launch {
+      val imported = withContext(Dispatchers.IO) { ContactBookImporter.readFromUri(app, uri) }
+      if (imported == null || !imported.hasAnyField) {
+        localState.update {
+          it.copy(statusMessage = app.getString(R.string.msg_contact_import_failed))
+        }
+        return@launch
+      }
+      localState.update { state ->
+        state.copy(
+          form =
+            state.form.copy(
+              makeStep = MakeStep.FILL_DETAILS,
+              selectedPreset = TagPresetKind.CONTACT,
+              selectedType = NdefRecordType.CONTACT,
+              contactName = imported.fullName,
+              contactOrg = imported.organization,
+              contactTitle = imported.title,
+              contactPhone = imported.phone,
+              contactEmail = imported.email,
+              contactWebsite = imported.website,
+              contactNote = imported.note,
+            ),
+          cardLabelDraft = state.cardLabelDraft.ifBlank { imported.fullName },
+          inputError = null,
+          statusMessage = app.getString(R.string.msg_contact_imported),
+        )
+      }
     }
   }
 

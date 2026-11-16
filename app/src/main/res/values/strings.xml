@@ -161,5 +161,9 @@
     <string name="msg_card_written">Tag saved</string>
     <string name="msg_card_copied">Tag copied and loaded</string>
     <string name="msg_card_cleared">Tag cleared</string>
+    <string name="action_pick_contact">Pick from Contacts</string>
+    <string name="msg_contact_imported">Contact details loaded</string>
+    <string name="msg_contact_import_failed">Could not read details from the selected contact</string>
+    <string name="msg_contact_permission_partial">Contacts permission denied. Only basic info could be read.</string>
     <string name="action_cancel">Cancel</string>
 </resources>

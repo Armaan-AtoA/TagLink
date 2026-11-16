@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Forum
@@ -122,6 +123,7 @@ fun RecordComposerSection(
   onSelectSocialPlatform: (SocialPlatform) -> Unit,
   onChangeMakeType: () -> Unit,
   onOpenCopyTag: () -> Unit,
+  onPickContact: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onCardLabelChanged: (String) -> Unit,
   onMakeReadOnlyChanged: (Boolean) -> Unit,
@@ -149,6 +151,7 @@ fun RecordComposerSection(
       FillDetailsStep(
         state = state,
         onChangeMakeType = onChangeMakeType,
+        onPickContact = onPickContact,
         onUpdateForm = onUpdateForm,
         onCardLabelChanged = onCardLabelChanged,
         onMakeReadOnlyChanged = onMakeReadOnlyChanged,
@@ -349,6 +352,7 @@ private fun ChooseSocialStep(
 private fun FillDetailsStep(
   state: TagUiState,
   onChangeMakeType: () -> Unit,
+  onPickContact: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onCardLabelChanged: (String) -> Unit,
   onMakeReadOnlyChanged: (Boolean) -> Unit,
@@ -431,6 +435,7 @@ private fun FillDetailsStep(
 
     PresetFields(
       form = state.form,
+      onPickContact = onPickContact,
       onUpdateForm = onUpdateForm,
       onApplyUrlPrefix = onApplyUrlPrefix,
       onApplyAppPreset = onApplyAppPreset,
@@ -574,6 +579,7 @@ private fun LockOptionChip(
 @Composable
 private fun PresetFields(
   form: RecordFormState,
+  onPickContact: () -> Unit,
   onUpdateForm: ((RecordFormState) -> RecordFormState) -> Unit,
   onApplyUrlPrefix: (String, String) -> Unit,
   onApplyAppPreset: (String) -> Unit,
@@ -665,6 +671,22 @@ private fun PresetFields(
     }
 
     TagPresetKind.CONTACT -> {
+      OutlinedButton(
+        onClick = onPickContact,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, extendedColors.border),
+        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("pick_contact_button"),
+      ) {
+        Icon(
+          imageVector = Icons.Outlined.Contacts,
+          contentDescription = null,
+          modifier = Modifier.size(18.dp),
+        )
+        Text(
+          text = "  ${stringResource(R.string.action_pick_contact)}",
+          style = MaterialTheme.typography.bodyMedium,
+        )
+      }
       OutlinedTextField(
         value = form.contactName,
         onValueChange = { v -> onUpdateForm { it.copy(contactName = v) } },

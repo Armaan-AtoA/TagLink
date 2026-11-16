@@ -13,7 +13,7 @@
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:contentDescription="@string/app_name"
-        android:src="@drawable/ic_qs_nfc_card"
+        android:src="@drawable/ic_widget_nfc_card"
         android:tint="#5E9BFF" />
 
     <LinearLayout
