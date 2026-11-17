@@ -11,7 +11,8 @@ class NdefHostApduService : HostApduService() {
   private val apduEngine = T4tApduEngine()
   private lateinit var activeCardStore: ActiveCardStore
   private lateinit var settingsStore: AppSettingsStore
-  private var readCompletedThisSession = false
+  private var sessionHasStarted = false
+  private var sessionTrueP2p = false
 
   override fun onCreate() {
     super.onCreate()
@@ -30,9 +31,25 @@ class NdefHostApduService : HostApduService() {
     val snapshot = activeCardStore.readSnapshot()
     val settings = settingsStore.readSettings()
     val isDynamicMode = settings.peerExchangeMode == PeerExchangeMode.DYNAMIC
-    val isDynamicSuppressed = isDynamicMode && DynamicSwitchController.isSuppressingHce()
-    val effectiveEmulating = snapshot.isEmulating && !isDynamicSuppressed
-    val bridgeEnabled = settings.peerExchangeMode == PeerExchangeMode.TRUE_P2P
+
+    val currentDynamicTrueP2p =
+      isDynamicMode && DynamicSwitchController.isTrueP2pWindowActive(applicationContext)
+    val computedTrueP2p =
+      (settings.peerExchangeMode == PeerExchangeMode.TRUE_P2P) || currentDynamicTrueP2p
+
+    if (!sessionHasStarted || isSelectAidApdu(commandApdu)) {
+      sessionHasStarted = true
+      sessionTrueP2p = computedTrueP2p
+    }
+
+    val isProprietaryExchange =
+      commandApdu.size >= 2 && (commandApdu[0].toInt() and 0xFF) == T4tApduEngine.CLA_PROPRIETARY
+    val bridgeEnabled =
+      if (isProprietaryExchange) {
+        sessionTrueP2p || computedTrueP2p
+      } else {
+        sessionTrueP2p
+      }
 
     val broadcastBytes =
       if (bridgeEnabled && snapshot.ndefMessageBytes.isNotEmpty()) {
@@ -61,16 +78,15 @@ class NdefHostApduService : HostApduService() {
     val outcome =
       apduEngine.processApdu(
         commandApdu = commandApdu,
-        isEmulationEnabled = effectiveEmulating,
+        isEmulationEnabled = snapshot.isEmulating,
         ndefMessageBytes = broadcastBytes,
         isReadOnly = snapshot.isReadOnly,
         isBridgeEnabled = bridgeEnabled,
         localExchangePacket = localPacketBytes,
       )
 
-    if (isDynamicMode && effectiveEmulating && outcome.completedNdefRead) {
-      readCompletedThisSession = true
-      DynamicSwitchController.onNdefTapCompleted()
+    if (isDynamicMode && snapshot.isEmulating && !sessionTrueP2p && outcome.completedNdefRead) {
+      DynamicSwitchController.activateTrueP2pWindow(applicationContext)
     }
 
     if (outcome.completedPeerExchange != null) {
@@ -97,10 +113,13 @@ class NdefHostApduService : HostApduService() {
 
   override fun onDeactivated(reason: Int) {
     apduEngine.reset()
-    val shouldSwitch = readCompletedThisSession
-    readCompletedThisSession = false
-    if (shouldSwitch && settingsStore.readSettings().peerExchangeMode == PeerExchangeMode.DYNAMIC) {
-      DynamicSwitchController.onLinkDeactivatedAfterRead()
-    }
+    sessionHasStarted = false
+    sessionTrueP2p = false
   }
+
+  private fun isSelectAidApdu(apdu: ByteArray): Boolean =
+    apdu.size >= 4 &&
+      (apdu[0].toInt() and 0xFF) == 0x00 &&
+      (apdu[1].toInt() and 0xFF) == 0xA4 &&
+      (apdu[2].toInt() and 0xFF) == 0x04
 }

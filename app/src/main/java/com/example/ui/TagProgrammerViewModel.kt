@@ -727,7 +727,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun clearCard() {
-    DynamicSwitchController.clear()
+    DynamicSwitchController.clear(getApplication())
     val snapshot = repository.clearActiveCard()
     localState.update {
       it.copy(
@@ -747,14 +747,14 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     val state = localState.value
 
     if (!enabled) {
-      DynamicSwitchController.clear()
+      DynamicSwitchController.clear(app)
       val snapshot = repository.setEmulating(false)
       localState.update { it.copy(nfcStatus = status, isEmulating = snapshot.isEmulating) }
       return
     }
 
     if (status != NfcHardwareStatus.READY) {
-      DynamicSwitchController.clear()
+      DynamicSwitchController.clear(app)
       repository.setEmulating(false)
       localState.update {
         it.copy(
@@ -789,7 +789,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   fun updateSettings(transform: (AppSettings) -> AppSettings) {
     val updated = repository.updateSettings(transform)
     if (updated.peerExchangeMode != PeerExchangeMode.DYNAMIC) {
-      DynamicSwitchController.clear()
+      DynamicSwitchController.clear(getApplication())
     }
     localState.update { it.copy(settings = updated) }
   }

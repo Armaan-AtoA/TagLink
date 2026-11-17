@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
 import com.example.nfc.ActiveCardStore
+import com.example.nfc.DynamicSwitchController
 import com.example.nfc.NfcHardwareHelper
 
 class TagPresetWidgetProvider : AppWidgetProvider() {
@@ -43,6 +44,7 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
 
       if (!nfcReady) {
         if (current.isEmulating) {
+          DynamicSwitchController.clear(context)
           store.setEmulating(false)
         }
         WidgetSyncHelper.refreshAll(context)
@@ -55,6 +57,7 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
       }
 
       if (pinned != null) {
+        DynamicSwitchController.clear(context)
         val isAlreadyActive =
           current.isEmulating && current.ndefMessageBytes.contentEquals(pinned.ndefBytes)
         if (isAlreadyActive) {
@@ -69,7 +72,11 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
         }
         WidgetSyncHelper.refreshAll(context)
       } else if (current.hasPayload || !current.isReadOnly) {
-        store.setEmulating(!current.isEmulating)
+        val nextEmulating = !current.isEmulating
+        if (!nextEmulating) {
+          DynamicSwitchController.clear(context)
+        }
+        store.setEmulating(nextEmulating)
         WidgetSyncHelper.refreshAll(context)
       } else {
         val launchIntent =

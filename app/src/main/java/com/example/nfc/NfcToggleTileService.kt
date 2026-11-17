@@ -25,6 +25,7 @@ class NfcToggleTileService : TileService() {
 
     if (!nfcReady) {
       if (snapshot.isEmulating) {
+        DynamicSwitchController.clear(applicationContext)
         store.setEmulating(false)
       }
       syncTileState()
@@ -39,7 +40,11 @@ class NfcToggleTileService : TileService() {
       return
     }
 
-    store.setEmulating(!snapshot.isEmulating)
+    val nextEmulating = !snapshot.isEmulating
+    if (!nextEmulating) {
+      DynamicSwitchController.clear(applicationContext)
+    }
+    store.setEmulating(nextEmulating)
     syncTileState()
     WidgetSyncHelper.refreshWidgetsOnly(applicationContext)
   }

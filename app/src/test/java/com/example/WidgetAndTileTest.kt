@@ -76,11 +76,13 @@ class WidgetAndTileTest {
     store = ActiveCardStore(context)
     store.clearCard()
     store.setReadOnly(true)
+    com.example.nfc.DynamicSwitchController.resetForTest(context)
     AppSettingsStore(context).updateSettings { AppSettings(hasCompletedTutorial = false) }
   }
 
   @After
   fun tearDown() {
+    com.example.nfc.DynamicSwitchController.resetForTest(context)
     NfcHardwareHelper.testStatusProvider = null
   }
 
@@ -398,20 +400,20 @@ class WidgetAndTileTest {
     }
 
     // Default DYNAMIC mode broadcasts a single standard NDEF record so non-app devices work
-    com.example.nfc.DynamicSwitchController.resetForTest()
+    com.example.nfc.DynamicSwitchController.resetForTest(context)
     val dynamicRecords = readNdefFromService()
     assertEquals(1, dynamicRecords.size)
     assertEquals("https://instagram.com/taglink", (dynamicRecords[0] as NdefRecordDraft.Url).url)
 
     // OFF mode also broadcasts a single standard NDEF record
-    com.example.nfc.DynamicSwitchController.resetForTest()
+    com.example.nfc.DynamicSwitchController.resetForTest(context)
     settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.OFF) }
     val offRecords = readNdefFromService()
     assertEquals(1, offRecords.size)
     assertEquals("https://instagram.com/taglink", (offRecords[0] as NdefRecordDraft.Url).url)
 
     // TRUE_P2P mode broadcasts multi-record tapshare://exchange + HTTPS fallback
-    com.example.nfc.DynamicSwitchController.resetForTest()
+    com.example.nfc.DynamicSwitchController.resetForTest(context)
     settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.TRUE_P2P) }
     val multiRecords = readNdefFromService()
     assertEquals(2, multiRecords.size)

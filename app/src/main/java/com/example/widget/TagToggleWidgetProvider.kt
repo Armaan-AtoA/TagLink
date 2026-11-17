@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
 import com.example.nfc.ActiveCardStore
+import com.example.nfc.DynamicSwitchController
 import com.example.nfc.NfcHardwareHelper
 
 class TagToggleWidgetProvider : AppWidgetProvider() {
@@ -31,6 +32,7 @@ class TagToggleWidgetProvider : AppWidgetProvider() {
 
       if (!nfcReady) {
         if (snapshot.isEmulating) {
+          DynamicSwitchController.clear(context)
           store.setEmulating(false)
         }
         WidgetSyncHelper.refreshAll(context)
@@ -49,7 +51,11 @@ class TagToggleWidgetProvider : AppWidgetProvider() {
           }
         context.startActivity(launchIntent)
       } else {
-        store.setEmulating(!snapshot.isEmulating)
+        val nextEmulating = !snapshot.isEmulating
+        if (!nextEmulating) {
+          DynamicSwitchController.clear(context)
+        }
+        store.setEmulating(nextEmulating)
         WidgetSyncHelper.refreshAll(context)
       }
     }
