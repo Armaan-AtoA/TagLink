@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.R
 import com.example.data.AppSettings
+import com.example.data.PeerExchangeMode
 import com.example.data.SavedTagViewMode
 import com.example.data.ThemeMode
 import com.example.ui.theme.LocalTagExtendedColors
@@ -224,12 +225,47 @@ fun SettingsScreen(
           testTag = "setting_stop_on_leave",
         )
         HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
-        SettingsToggleRow(
-          label = stringResource(R.string.settings_multi_record_mode),
-          checked = settings.multiRecordBridgeEnabled,
-          onCheckedChange = { v -> onUpdateSettings { it.copy(multiRecordBridgeEnabled = v) } },
-          testTag = "setting_multi_record_bridge",
+        Text(
+          text = stringResource(R.string.settings_peer_exchange_label),
+          style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+          color = MaterialTheme.colorScheme.onSurface,
         )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          PeerExchangeMode.entries.forEach { peerMode ->
+            val selected = settings.peerExchangeMode == peerMode
+            OutlinedButton(
+              onClick = { onUpdateSettings { it.copy(peerExchangeMode = peerMode) } },
+              shape = MaterialTheme.shapes.small,
+              colors =
+                ButtonDefaults.outlinedButtonColors(
+                  containerColor =
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                  contentColor =
+                    if (selected) MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSurface,
+                ),
+              border =
+                BorderStroke(
+                  1.dp,
+                  if (selected) MaterialTheme.colorScheme.primary else extendedColors.border,
+                ),
+              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+              modifier =
+                Modifier.weight(1f)
+                  .height(48.dp)
+                  .testTag("peer_mode_${peerMode.name.lowercase()}"),
+            ) {
+              Text(
+                text = peerMode.label,
+                style = MaterialTheme.typography.labelMedium,
+              )
+            }
+          }
+        }
       }
     }
 

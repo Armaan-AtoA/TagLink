@@ -3,6 +3,7 @@ package com.example.nfc
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import com.example.data.AppSettingsStore
+import com.example.data.PeerExchangeMode
 import com.example.widget.WidgetSyncHelper
 
 class NdefHostApduService : HostApduService() {
@@ -27,7 +28,7 @@ class NdefHostApduService : HostApduService() {
 
     val snapshot = activeCardStore.readSnapshot()
     val settings = settingsStore.readSettings()
-    val bridgeEnabled = settings.multiRecordBridgeEnabled
+    val bridgeEnabled = settings.peerExchangeMode == PeerExchangeMode.TRUE_P2P
 
     val broadcastBytes =
       if (bridgeEnabled && snapshot.ndefMessageBytes.isNotEmpty()) {

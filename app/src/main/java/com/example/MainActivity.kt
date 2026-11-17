@@ -12,21 +12,29 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.example.data.PeerExchangeMode
 import com.example.data.ThemeMode
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
 import com.example.nfc.NfcTagReaderHelper
+import com.example.nfc.PulseNfcController
+import com.example.nfc.ScannedTagResult
+import com.example.nfc.SilentPeerBridgeCoordinator
 import com.example.ui.TagProgrammerScreen
 import com.example.ui.TagProgrammerViewModel
 import com.example.ui.theme.TagLinkTheme
 import com.example.widget.WidgetSyncHelper
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -59,68 +67,129 @@ class MainActivity : ComponentActivity() {
       }
 
       val lifecycleOwner = LocalLifecycleOwner.current
-      DisposableEffect(uiState.isCopyScanning, lifecycleOwner) {
-        val adapter = NfcAdapter.getDefaultAdapter(this@MainActivity)
-        fun enableScanning() {
-          if (!uiState.isCopyScanning || adapter == null) return
-          NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
-          val flags =
-            NfcAdapter.FLAG_READER_NFC_A or
-              NfcAdapter.FLAG_READER_NFC_B or
-              NfcAdapter.FLAG_READER_NFC_F or
-              NfcAdapter.FLAG_READER_NFC_V or
-              NfcAdapter.FLAG_READER_NFC_BARCODE
-          runCatching {
-            adapter.enableReaderMode(
-              this@MainActivity,
-              { tag ->
-                val result = NfcTagReaderHelper.readPhysicalTag(tag)
-                runOnUiThread { viewModel.onPhysicalTagScanned(result) }
-              },
-              flags,
-              null,
-            )
+      var isResumed by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+      }
+      DisposableEffect(lifecycleOwner) {
+        isResumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        val observer = LifecycleEventObserver { _, event ->
+          when (event) {
+            Lifecycle.Event.ON_RESUME -> isResumed = true
+            Lifecycle.Event.ON_PAUSE -> isResumed = false
+            else -> Unit
           }
         }
-        fun disableScanning() {
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+      }
+
+      val hasTarget = uiState.activeNdefBytes.isNotEmpty() || !uiState.isReadOnly
+      val emulationReady =
+        uiState.isEmulating && hasTarget && uiState.nfcStatus == NfcHardwareStatus.READY
+      val shouldPulse =
+        isResumed &&
+          !uiState.isCopyScanning &&
+          emulationReady &&
+          uiState.settings.peerExchangeMode == PeerExchangeMode.PULSE
+
+      DisposableEffect(
+        isResumed,
+        uiState.isCopyScanning,
+        shouldPulse,
+        emulationReady,
+        uiState.settings.preferForegroundHce,
+      ) {
+        val adapter = NfcAdapter.getDefaultAdapter(this@MainActivity)
+        val readerFlags =
+          NfcAdapter.FLAG_READER_NFC_A or
+            NfcAdapter.FLAG_READER_NFC_B or
+            NfcAdapter.FLAG_READER_NFC_F or
+            NfcAdapter.FLAG_READER_NFC_V or
+            NfcAdapter.FLAG_READER_NFC_BARCODE
+
+        fun disableReader() {
           if (adapter != null) {
             runCatching { adapter.disableReaderMode(this@MainActivity) }
           }
         }
 
-        if (uiState.isCopyScanning && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-          enableScanning()
-        }
-        val observer = LifecycleEventObserver { _, event ->
-          when (event) {
-            Lifecycle.Event.ON_RESUME -> if (uiState.isCopyScanning) enableScanning()
-            Lifecycle.Event.ON_PAUSE -> disableScanning()
-            else -> Unit
+        val pulseJob =
+          when {
+            !isResumed -> {
+              NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
+              disableReader()
+              null
+            }
+            uiState.isCopyScanning -> {
+              NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
+              if (adapter != null) {
+                runCatching {
+                  adapter.enableReaderMode(
+                    this@MainActivity,
+                    { tag ->
+                      val result = NfcTagReaderHelper.readPhysicalTag(tag)
+                      runOnUiThread { viewModel.onPhysicalTagScanned(result) }
+                    },
+                    readerFlags,
+                    null,
+                  )
+                }
+              }
+              null
+            }
+            shouldPulse -> {
+              lifecycleOwner.lifecycleScope.launch {
+                PulseNfcController.runPulseLoop(
+                  startSending = true,
+                  onPhaseChanged = { isSending ->
+                    if (isSending) {
+                      disableReader()
+                      NfcHardwareHelper.setPreferredForegroundService(
+                        this@MainActivity,
+                        uiState.settings.preferForegroundHce,
+                      )
+                    } else {
+                      NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
+                      if (adapter != null) {
+                        runCatching {
+                          adapter.enableReaderMode(
+                            this@MainActivity,
+                            { tag ->
+                              val result = NfcTagReaderHelper.readPhysicalTag(tag)
+                              if (result is ScannedTagResult.Success) {
+                                runOnUiThread {
+                                  SilentPeerBridgeCoordinator.executeIncomingPeerCard(
+                                    context = this@MainActivity,
+                                    rawNdefBytes = result.ndefBytes,
+                                    senderId = "",
+                                  )
+                                }
+                              }
+                            },
+                            readerFlags,
+                            null,
+                          )
+                        }
+                      }
+                    }
+                  },
+                )
+              }
+            }
+            else -> {
+              disableReader()
+              NfcHardwareHelper.setPreferredForegroundService(
+                this@MainActivity,
+                uiState.settings.preferForegroundHce && emulationReady,
+              )
+              null
+            }
           }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-          lifecycleOwner.lifecycle.removeObserver(observer)
-          disableScanning()
-        }
-      }
 
-      LaunchedEffect(
-        uiState.isEmulating,
-        uiState.activeNdefBytes,
-        uiState.isReadOnly,
-        uiState.nfcStatus,
-        uiState.settings.preferForegroundHce,
-        uiState.isCopyScanning,
-      ) {
-        val hasTarget = uiState.activeNdefBytes.isNotEmpty() || !uiState.isReadOnly
-        val shouldPrefer =
-          !uiState.isCopyScanning &&
-            uiState.settings.preferForegroundHce &&
-            uiState.isEmulating &&
-            hasTarget &&
-            uiState.nfcStatus == NfcHardwareStatus.READY
-        NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, shouldPrefer)
+        onDispose {
+          pulseJob?.cancel()
+          disableReader()
+        }
       }
 
       val darkTheme =

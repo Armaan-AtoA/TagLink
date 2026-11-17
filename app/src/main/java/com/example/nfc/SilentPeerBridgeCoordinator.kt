@@ -4,6 +4,7 @@ import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
 import com.example.data.AppSettingsStore
+import com.example.data.PeerExchangeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,7 +16,7 @@ object SilentPeerBridgeCoordinator {
 
   private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private const val MAX_ISO_DEP_CHUNK = 220
-  private const val DEDUPE_WINDOW_MS = 1_500L
+  private const val DEDUPE_WINDOW_MS = 2_500L
   private const val ISO_DEP_EXCHANGE_TIMEOUT_MS = 450L
 
   @Volatile private var lastExecutedKey: String? = null
@@ -49,7 +50,7 @@ object SilentPeerBridgeCoordinator {
         var targetBytes = parsed?.primaryNdefBytes
         var targetSenderId = parsed?.senderId.orEmpty()
 
-        if (settings.multiRecordBridgeEnabled && snapshot.hasPayload) {
+        if (settings.peerExchangeMode == PeerExchangeMode.TRUE_P2P && snapshot.hasPayload) {
           val replyPacket =
             NdefBridgeCodec.encodePeerPacket(
               PeerExchangePacket(

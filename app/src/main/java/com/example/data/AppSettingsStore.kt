@@ -14,6 +14,12 @@ enum class SavedTagViewMode(val label: String) {
   WALLET("Wallet"),
 }
 
+enum class PeerExchangeMode(val label: String) {
+  OFF("Off"),
+  PULSE("Pulse"),
+  TRUE_P2P("True P2P"),
+}
+
 data class AppSettings(
   val themeMode: ThemeMode = ThemeMode.SYSTEM,
   val savedTagViewMode: SavedTagViewMode = SavedTagViewMode.SIMPLIFIED,
@@ -22,7 +28,7 @@ data class AppSettings(
   val autoActivateOnSelect: Boolean = false,
   val preferForegroundHce: Boolean = true,
   val stopOnLeaveApp: Boolean = false,
-  val multiRecordBridgeEnabled: Boolean = true,
+  val peerExchangeMode: PeerExchangeMode = PeerExchangeMode.PULSE,
   val bridgeDeviceId: String = "",
   val hasCompletedTutorial: Boolean = false,
 )
@@ -41,6 +47,12 @@ class AppSettingsStore(context: Context) {
     val savedTagViewMode =
       SavedTagViewMode.entries.firstOrNull { it.name == viewModeName }
         ?: SavedTagViewMode.SIMPLIFIED
+    val peerModeName =
+      prefs.getString(KEY_PEER_EXCHANGE_MODE, PeerExchangeMode.PULSE.name)
+        ?: PeerExchangeMode.PULSE.name
+    val peerExchangeMode =
+      PeerExchangeMode.entries.firstOrNull { it.name == peerModeName }
+        ?: PeerExchangeMode.PULSE
     val deviceId = ensureBridgeDeviceId()
     return AppSettings(
       themeMode = themeMode,
@@ -50,7 +62,7 @@ class AppSettingsStore(context: Context) {
       autoActivateOnSelect = prefs.getBoolean(KEY_AUTO_ACTIVATE_SELECT, false),
       preferForegroundHce = prefs.getBoolean(KEY_PREFER_FOREGROUND, true),
       stopOnLeaveApp = prefs.getBoolean(KEY_STOP_ON_LEAVE, false),
-      multiRecordBridgeEnabled = prefs.getBoolean(KEY_MULTI_RECORD_BRIDGE, true),
+      peerExchangeMode = peerExchangeMode,
       bridgeDeviceId = deviceId,
       hasCompletedTutorial = prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false),
     )
@@ -68,7 +80,7 @@ class AppSettingsStore(context: Context) {
       .putBoolean(KEY_AUTO_ACTIVATE_SELECT, updated.autoActivateOnSelect)
       .putBoolean(KEY_PREFER_FOREGROUND, updated.preferForegroundHce)
       .putBoolean(KEY_STOP_ON_LEAVE, updated.stopOnLeaveApp)
-      .putBoolean(KEY_MULTI_RECORD_BRIDGE, updated.multiRecordBridgeEnabled)
+      .putString(KEY_PEER_EXCHANGE_MODE, updated.peerExchangeMode.name)
       .putString(KEY_BRIDGE_DEVICE_ID, resolvedDeviceId)
       .putBoolean(KEY_TUTORIAL_COMPLETED, updated.hasCompletedTutorial)
       .apply()
@@ -96,7 +108,7 @@ class AppSettingsStore(context: Context) {
     private const val KEY_AUTO_ACTIVATE_SELECT = "auto_activate_select"
     private const val KEY_PREFER_FOREGROUND = "prefer_foreground"
     private const val KEY_STOP_ON_LEAVE = "stop_on_leave"
-    private const val KEY_MULTI_RECORD_BRIDGE = "multi_record_bridge_enabled"
+    private const val KEY_PEER_EXCHANGE_MODE = "peer_exchange_mode"
     private const val KEY_BRIDGE_DEVICE_ID = "bridge_device_id"
     private const val KEY_TUTORIAL_COMPLETED = "has_completed_tutorial"
   }

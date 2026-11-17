@@ -20,6 +20,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppSettings
 import com.example.data.AppSettingsStore
+import com.example.data.PeerExchangeMode
 import com.example.data.SavedLinkEntity
 import com.example.data.SavedTagViewMode
 import com.example.data.TagDatabase
@@ -294,13 +295,16 @@ class WidgetAndTileTest {
     composeRule.waitForIdle()
     assertEquals(ThemeMode.DARK, viewModel.uiState.value.settings.themeMode)
     assertEquals(SavedTagViewMode.WALLET, viewModel.uiState.value.settings.savedTagViewMode)
-    assertTrue(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
-    composeRule.onNodeWithTag("setting_multi_record_bridge").performScrollTo().performClick()
+    assertEquals(PeerExchangeMode.PULSE, viewModel.uiState.value.settings.peerExchangeMode)
+    composeRule.onNodeWithTag("peer_mode_off").performScrollTo().performClick()
     composeRule.waitForIdle()
-    assertFalse(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
-    composeRule.onNodeWithTag("setting_multi_record_bridge").performClick()
+    assertEquals(PeerExchangeMode.OFF, viewModel.uiState.value.settings.peerExchangeMode)
+    composeRule.onNodeWithTag("peer_mode_true_p2p").performClick()
     composeRule.waitForIdle()
-    assertTrue(viewModel.uiState.value.settings.multiRecordBridgeEnabled)
+    assertEquals(PeerExchangeMode.TRUE_P2P, viewModel.uiState.value.settings.peerExchangeMode)
+    composeRule.onNodeWithTag("peer_mode_pulse").performClick()
+    composeRule.waitForIdle()
+    assertEquals(PeerExchangeMode.PULSE, viewModel.uiState.value.settings.peerExchangeMode)
 
     // Guided 3-step Make Tag: verify Contact Card shows Pick from Contacts, then Socials -> Instagram -> @username -> Save Tag
     composeRule.onNodeWithTag("back_button").performClick()
@@ -364,7 +368,7 @@ class WidgetAndTileTest {
   }
 
   @Test
-  fun `hce service broadcasts multi-record bridge by default and falls back to single record when off`() {
+  fun `hce service broadcasts standard single record in pulse and off modes and multi-record in true p2p mode`() {
     simulatedNfcStatus = NfcHardwareStatus.READY
     store.writeRecords(
       records = listOf(NdefRecordDraft.Url("https://instagram.com/taglink")),
@@ -374,7 +378,7 @@ class WidgetAndTileTest {
     store.setEmulating(true)
 
     val settingsStore = AppSettingsStore(context)
-    assertTrue(settingsStore.readSettings().multiRecordBridgeEnabled)
+    assertEquals(PeerExchangeMode.PULSE, settingsStore.readSettings().peerExchangeMode)
 
     val service = org.robolectric.Robolectric.setupService(com.example.nfc.NdefHostApduService::class.java)
     fun readNdefFromService(): List<NdefRecordDraft> {
@@ -393,21 +397,30 @@ class WidgetAndTileTest {
       return NdefMessageCodec.decodeRecords(ndefBytes)
     }
 
+    // Default PULSE mode broadcasts a single standard NDEF record so non-app devices work
+    val pulseRecords = readNdefFromService()
+    assertEquals(1, pulseRecords.size)
+    assertEquals("https://instagram.com/taglink", (pulseRecords[0] as NdefRecordDraft.Url).url)
+
+    // OFF mode also broadcasts a single standard NDEF record
+    settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.OFF) }
+    val offRecords = readNdefFromService()
+    assertEquals(1, offRecords.size)
+    assertEquals("https://instagram.com/taglink", (offRecords[0] as NdefRecordDraft.Url).url)
+
+    // TRUE_P2P mode broadcasts multi-record tapshare://exchange + HTTPS fallback
+    settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.TRUE_P2P) }
     val multiRecords = readNdefFromService()
     assertEquals(2, multiRecords.size)
     assertTrue((multiRecords[0] as NdefRecordDraft.Url).url.startsWith("tapshare://exchange?"))
     assertEquals("https://instagram.com/taglink", (multiRecords[1] as NdefRecordDraft.Url).url)
-
-    settingsStore.updateSettings { it.copy(multiRecordBridgeEnabled = false) }
-    val singleRecords = readNdefFromService()
-    assertEquals(1, singleRecords.size)
-    assertEquals("https://instagram.com/taglink", (singleRecords[0] as NdefRecordDraft.Url).url)
   }
 
   @Test
   fun `app-to-app bridge executes tapped tag action on both phones without adding new cards`() = runBlocking {
     simulatedNfcStatus = NfcHardwareStatus.READY
     com.example.nfc.SilentPeerBridgeCoordinator.resetDedupeForTest()
+    AppSettingsStore(context).updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.TRUE_P2P) }
 
     val app = ApplicationProvider.getApplicationContext<Application>()
     val dao = TagDatabase.getInstance(context).tagDao()

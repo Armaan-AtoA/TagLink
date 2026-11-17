@@ -111,7 +111,7 @@
     <string name="settings_auto_activate_select">Auto-activate when picking saved tag</string>
     <string name="settings_prefer_foreground">Prioritize TagLink while app is open</string>
     <string name="settings_stop_on_leave">Deactivate tag when leaving app</string>
-    <string name="settings_multi_record_mode">Multi-record tag mode</string>
+    <string name="settings_peer_exchange_label">Two-Way Tap</string>
     <string name="settings_section_shortcuts">Shortcuts &amp; Hardware</string>
     <string name="settings_open_nfc">Android NFC Settings</string>
     <string name="settings_pin_widget">Pin Home Screen Widget</string>
