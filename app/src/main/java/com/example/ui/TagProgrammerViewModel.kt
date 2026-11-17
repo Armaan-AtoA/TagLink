@@ -11,11 +11,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.data.AppSettings
 import com.example.data.AppSettingsStore
+import com.example.data.PeerExchangeMode
 import com.example.data.SavedLinkEntity
 import com.example.data.TagDatabase
 import com.example.data.TagRepository
 import com.example.nfc.ActiveCardStore
 import com.example.nfc.ContactBookImporter
+import com.example.nfc.DynamicSwitchController
 import com.example.nfc.NdefMessageCodec
 import com.example.nfc.NdefRecordDraft
 import com.example.nfc.NdefRecordType
@@ -725,6 +727,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun clearCard() {
+    DynamicSwitchController.clear()
     val snapshot = repository.clearActiveCard()
     localState.update {
       it.copy(
@@ -744,12 +747,14 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     val state = localState.value
 
     if (!enabled) {
+      DynamicSwitchController.clear()
       val snapshot = repository.setEmulating(false)
       localState.update { it.copy(nfcStatus = status, isEmulating = snapshot.isEmulating) }
       return
     }
 
     if (status != NfcHardwareStatus.READY) {
+      DynamicSwitchController.clear()
       repository.setEmulating(false)
       localState.update {
         it.copy(
@@ -783,6 +788,9 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
   fun updateSettings(transform: (AppSettings) -> AppSettings) {
     val updated = repository.updateSettings(transform)
+    if (updated.peerExchangeMode != PeerExchangeMode.DYNAMIC) {
+      DynamicSwitchController.clear()
+    }
     localState.update { it.copy(settings = updated) }
   }
 

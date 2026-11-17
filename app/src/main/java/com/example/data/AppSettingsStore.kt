@@ -16,7 +16,7 @@ enum class SavedTagViewMode(val label: String) {
 
 enum class PeerExchangeMode(val label: String) {
   OFF("Off"),
-  PULSE("Pulse"),
+  DYNAMIC("Dynamic"),
   TRUE_P2P("True P2P"),
 }
 
@@ -28,7 +28,7 @@ data class AppSettings(
   val autoActivateOnSelect: Boolean = false,
   val preferForegroundHce: Boolean = true,
   val stopOnLeaveApp: Boolean = false,
-  val peerExchangeMode: PeerExchangeMode = PeerExchangeMode.PULSE,
+  val peerExchangeMode: PeerExchangeMode = PeerExchangeMode.DYNAMIC,
   val bridgeDeviceId: String = "",
   val hasCompletedTutorial: Boolean = false,
 )
@@ -48,11 +48,11 @@ class AppSettingsStore(context: Context) {
       SavedTagViewMode.entries.firstOrNull { it.name == viewModeName }
         ?: SavedTagViewMode.SIMPLIFIED
     val peerModeName =
-      prefs.getString(KEY_PEER_EXCHANGE_MODE, PeerExchangeMode.PULSE.name)
-        ?: PeerExchangeMode.PULSE.name
+      prefs.getString(KEY_PEER_EXCHANGE_MODE, PeerExchangeMode.DYNAMIC.name)
+        ?: PeerExchangeMode.DYNAMIC.name
     val peerExchangeMode =
       PeerExchangeMode.entries.firstOrNull { it.name == peerModeName }
-        ?: PeerExchangeMode.PULSE
+        ?: PeerExchangeMode.DYNAMIC
     val deviceId = ensureBridgeDeviceId()
     return AppSettings(
       themeMode = themeMode,

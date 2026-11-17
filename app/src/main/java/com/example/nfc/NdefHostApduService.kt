@@ -11,6 +11,7 @@ class NdefHostApduService : HostApduService() {
   private val apduEngine = T4tApduEngine()
   private lateinit var activeCardStore: ActiveCardStore
   private lateinit var settingsStore: AppSettingsStore
+  private var readCompletedThisSession = false
 
   override fun onCreate() {
     super.onCreate()
@@ -28,6 +29,9 @@ class NdefHostApduService : HostApduService() {
 
     val snapshot = activeCardStore.readSnapshot()
     val settings = settingsStore.readSettings()
+    val isDynamicMode = settings.peerExchangeMode == PeerExchangeMode.DYNAMIC
+    val isDynamicSuppressed = isDynamicMode && DynamicSwitchController.isSuppressingHce()
+    val effectiveEmulating = snapshot.isEmulating && !isDynamicSuppressed
     val bridgeEnabled = settings.peerExchangeMode == PeerExchangeMode.TRUE_P2P
 
     val broadcastBytes =
@@ -57,12 +61,17 @@ class NdefHostApduService : HostApduService() {
     val outcome =
       apduEngine.processApdu(
         commandApdu = commandApdu,
-        isEmulationEnabled = snapshot.isEmulating,
+        isEmulationEnabled = effectiveEmulating,
         ndefMessageBytes = broadcastBytes,
         isReadOnly = snapshot.isReadOnly,
         isBridgeEnabled = bridgeEnabled,
         localExchangePacket = localPacketBytes,
       )
+
+    if (isDynamicMode && effectiveEmulating && outcome.completedNdefRead) {
+      readCompletedThisSession = true
+      DynamicSwitchController.onNdefTapCompleted()
+    }
 
     if (outcome.completedPeerExchange != null) {
       val exchanged = outcome.completedPeerExchange
@@ -88,5 +97,10 @@ class NdefHostApduService : HostApduService() {
 
   override fun onDeactivated(reason: Int) {
     apduEngine.reset()
+    val shouldSwitch = readCompletedThisSession
+    readCompletedThisSession = false
+    if (shouldSwitch && settingsStore.readSettings().peerExchangeMode == PeerExchangeMode.DYNAMIC) {
+      DynamicSwitchController.onLinkDeactivatedAfterRead()
+    }
   }
 }

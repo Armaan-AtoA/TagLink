@@ -16,7 +16,7 @@ object SilentPeerBridgeCoordinator {
 
   private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private const val MAX_ISO_DEP_CHUNK = 220
-  private const val DEDUPE_WINDOW_MS = 2_500L
+  private const val DEDUPE_WINDOW_MS = 3_500L
   private const val ISO_DEP_EXCHANGE_TIMEOUT_MS = 450L
 
   @Volatile private var lastExecutedKey: String? = null

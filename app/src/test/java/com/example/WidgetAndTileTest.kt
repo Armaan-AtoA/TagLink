@@ -295,16 +295,16 @@ class WidgetAndTileTest {
     composeRule.waitForIdle()
     assertEquals(ThemeMode.DARK, viewModel.uiState.value.settings.themeMode)
     assertEquals(SavedTagViewMode.WALLET, viewModel.uiState.value.settings.savedTagViewMode)
-    assertEquals(PeerExchangeMode.PULSE, viewModel.uiState.value.settings.peerExchangeMode)
+    assertEquals(PeerExchangeMode.DYNAMIC, viewModel.uiState.value.settings.peerExchangeMode)
     composeRule.onNodeWithTag("peer_mode_off").performScrollTo().performClick()
     composeRule.waitForIdle()
     assertEquals(PeerExchangeMode.OFF, viewModel.uiState.value.settings.peerExchangeMode)
     composeRule.onNodeWithTag("peer_mode_true_p2p").performClick()
     composeRule.waitForIdle()
     assertEquals(PeerExchangeMode.TRUE_P2P, viewModel.uiState.value.settings.peerExchangeMode)
-    composeRule.onNodeWithTag("peer_mode_pulse").performClick()
+    composeRule.onNodeWithTag("peer_mode_dynamic").performClick()
     composeRule.waitForIdle()
-    assertEquals(PeerExchangeMode.PULSE, viewModel.uiState.value.settings.peerExchangeMode)
+    assertEquals(PeerExchangeMode.DYNAMIC, viewModel.uiState.value.settings.peerExchangeMode)
 
     // Guided 3-step Make Tag: verify Contact Card shows Pick from Contacts, then Socials -> Instagram -> @username -> Save Tag
     composeRule.onNodeWithTag("back_button").performClick()
@@ -368,7 +368,7 @@ class WidgetAndTileTest {
   }
 
   @Test
-  fun `hce service broadcasts standard single record in pulse and off modes and multi-record in true p2p mode`() {
+  fun `hce service broadcasts standard single record in dynamic and off modes and multi-record in true p2p mode`() {
     simulatedNfcStatus = NfcHardwareStatus.READY
     store.writeRecords(
       records = listOf(NdefRecordDraft.Url("https://instagram.com/taglink")),
@@ -378,7 +378,7 @@ class WidgetAndTileTest {
     store.setEmulating(true)
 
     val settingsStore = AppSettingsStore(context)
-    assertEquals(PeerExchangeMode.PULSE, settingsStore.readSettings().peerExchangeMode)
+    assertEquals(PeerExchangeMode.DYNAMIC, settingsStore.readSettings().peerExchangeMode)
 
     val service = org.robolectric.Robolectric.setupService(com.example.nfc.NdefHostApduService::class.java)
     fun readNdefFromService(): List<NdefRecordDraft> {
@@ -397,18 +397,21 @@ class WidgetAndTileTest {
       return NdefMessageCodec.decodeRecords(ndefBytes)
     }
 
-    // Default PULSE mode broadcasts a single standard NDEF record so non-app devices work
-    val pulseRecords = readNdefFromService()
-    assertEquals(1, pulseRecords.size)
-    assertEquals("https://instagram.com/taglink", (pulseRecords[0] as NdefRecordDraft.Url).url)
+    // Default DYNAMIC mode broadcasts a single standard NDEF record so non-app devices work
+    com.example.nfc.DynamicSwitchController.resetForTest()
+    val dynamicRecords = readNdefFromService()
+    assertEquals(1, dynamicRecords.size)
+    assertEquals("https://instagram.com/taglink", (dynamicRecords[0] as NdefRecordDraft.Url).url)
 
     // OFF mode also broadcasts a single standard NDEF record
+    com.example.nfc.DynamicSwitchController.resetForTest()
     settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.OFF) }
     val offRecords = readNdefFromService()
     assertEquals(1, offRecords.size)
     assertEquals("https://instagram.com/taglink", (offRecords[0] as NdefRecordDraft.Url).url)
 
     // TRUE_P2P mode broadcasts multi-record tapshare://exchange + HTTPS fallback
+    com.example.nfc.DynamicSwitchController.resetForTest()
     settingsStore.updateSettings { it.copy(peerExchangeMode = PeerExchangeMode.TRUE_P2P) }
     val multiRecords = readNdefFromService()
     assertEquals(2, multiRecords.size)

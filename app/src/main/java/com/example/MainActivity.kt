@@ -24,16 +24,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.example.data.PeerExchangeMode
 import com.example.data.ThemeMode
+import com.example.nfc.DynamicSwitchController
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
 import com.example.nfc.NfcTagReaderHelper
-import com.example.nfc.PulseNfcController
 import com.example.nfc.ScannedTagResult
 import com.example.nfc.SilentPeerBridgeCoordinator
 import com.example.ui.TagProgrammerScreen
 import com.example.ui.TagProgrammerViewModel
 import com.example.ui.theme.TagLinkTheme
 import com.example.widget.WidgetSyncHelper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -83,20 +84,24 @@ class MainActivity : ComponentActivity() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
       }
 
+      val dynamicWindow by DynamicSwitchController.windowState.collectAsStateWithLifecycle()
       val hasTarget = uiState.activeNdefBytes.isNotEmpty() || !uiState.isReadOnly
       val emulationReady =
         uiState.isEmulating && hasTarget && uiState.nfcStatus == NfcHardwareStatus.READY
-      val shouldPulse =
+      val isDynamicReceiving =
         isResumed &&
           !uiState.isCopyScanning &&
           emulationReady &&
-          uiState.settings.peerExchangeMode == PeerExchangeMode.PULSE
+          uiState.settings.peerExchangeMode == PeerExchangeMode.DYNAMIC &&
+          dynamicWindow.receiveUntilMs > DynamicSwitchController.nowMs()
 
       DisposableEffect(
         isResumed,
         uiState.isCopyScanning,
-        shouldPulse,
         emulationReady,
+        isDynamicReceiving,
+        dynamicWindow.generation,
+        uiState.settings.peerExchangeMode,
         uiState.settings.preferForegroundHce,
       ) {
         val adapter = NfcAdapter.getDefaultAdapter(this@MainActivity)
@@ -113,7 +118,7 @@ class MainActivity : ComponentActivity() {
           }
         }
 
-        val pulseJob =
+        val dynamicWindowJob =
           when {
             !isResumed -> {
               NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
@@ -137,43 +142,36 @@ class MainActivity : ComponentActivity() {
               }
               null
             }
-            shouldPulse -> {
-              lifecycleOwner.lifecycleScope.launch {
-                PulseNfcController.runPulseLoop(
-                  startSending = true,
-                  onPhaseChanged = { isSending ->
-                    if (isSending) {
-                      disableReader()
-                      NfcHardwareHelper.setPreferredForegroundService(
-                        this@MainActivity,
-                        uiState.settings.preferForegroundHce,
-                      )
-                    } else {
-                      NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
-                      if (adapter != null) {
-                        runCatching {
-                          adapter.enableReaderMode(
-                            this@MainActivity,
-                            { tag ->
-                              val result = NfcTagReaderHelper.readPhysicalTag(tag)
-                              if (result is ScannedTagResult.Success) {
-                                runOnUiThread {
-                                  SilentPeerBridgeCoordinator.executeIncomingPeerCard(
-                                    context = this@MainActivity,
-                                    rawNdefBytes = result.ndefBytes,
-                                    senderId = "",
-                                  )
-                                }
-                              }
-                            },
-                            readerFlags,
-                            null,
+            isDynamicReceiving -> {
+              NfcHardwareHelper.setPreferredForegroundService(this@MainActivity, false)
+              if (adapter != null) {
+                runCatching {
+                  adapter.enableReaderMode(
+                    this@MainActivity,
+                    { tag ->
+                      val result = NfcTagReaderHelper.readPhysicalTag(tag)
+                      if (result is ScannedTagResult.Success) {
+                        runOnUiThread {
+                          SilentPeerBridgeCoordinator.executeIncomingPeerCard(
+                            context = this@MainActivity,
+                            rawNdefBytes = result.ndefBytes,
+                            senderId = "",
                           )
                         }
                       }
-                    }
-                  },
-                )
+                    },
+                    readerFlags,
+                    null,
+                  )
+                }
+              }
+              val generation = dynamicWindow.generation
+              lifecycleOwner.lifecycleScope.launch {
+                val remaining = DynamicSwitchController.remainingWindowMs()
+                if (remaining > 0L) {
+                  delay(remaining)
+                }
+                DynamicSwitchController.clearIfWindowMatches(generation)
               }
             }
             else -> {
@@ -187,7 +185,7 @@ class MainActivity : ComponentActivity() {
           }
 
         onDispose {
-          pulseJob?.cancel()
+          dynamicWindowJob?.cancel()
           disableReader()
         }
       }
@@ -249,8 +247,12 @@ class MainActivity : ComponentActivity() {
     viewModel.refreshState()
     val state = viewModel.uiState.value
     val hasTarget = state.activeNdefBytes.isNotEmpty() || !state.isReadOnly
+    val isDynamicReceiving =
+      state.settings.peerExchangeMode == PeerExchangeMode.DYNAMIC &&
+        DynamicSwitchController.isSuppressingHce()
     val shouldPrefer =
       !state.isCopyScanning &&
+        !isDynamicReceiving &&
         state.settings.preferForegroundHce &&
         state.isEmulating &&
         hasTarget &&
