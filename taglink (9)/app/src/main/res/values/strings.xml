@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TagLink</string>
+    <string name="hce_service_description">TagLink NFC Card</string>
+    <string name="hce_aid_group_description">NDEF Type 4 Tag</string>
+
+    <string name="nfc_status_ready">NFC ON</string>
+    <string name="nfc_status_disabled">NFC OFF</string>
+    <string name="nfc_status_no_hardware">No NFC</string>
+    <string name="nfc_required_banner">NFC is turned off. Turn on NFC to activate or scan tags.</string>
+    <string name="nfc_unsupported_banner">This device does not support NFC Host Card Emulation.</string>
+    <string name="action_turn_on_nfc">Open NFC Settings</string>
+
+    <string name="home_activate_title">Activate Tag</string>
+    <string name="home_activate_subtitle">Broadcast your active tag or pick from saved tags</string>
+    <string name="home_make_title">Make Tag</string>
+    <string name="home_make_subtitle">Choose Socials, Link, Contact, Wi-Fi, and more</string>
+    <string name="home_copy_title">Copy Tag</string>
+    <string name="home_copy_subtitle">Scan a physical NFC card or sticker to clone it</string>
+
+    <string name="home_shortcuts_title">Shortcuts</string>
+    <string name="home_shortcuts_subtitle">Add one-tap NFC controls to your phone</string>
+    <string name="shortcut_widget_title">Home Widget</string>
+    <string name="shortcut_widget_sub">Pin toggle or card widget</string>
+    <string name="shortcut_qs_title">Quick Tile</string>
+    <string name="shortcut_qs_sub">Add to Quick Settings</string>
+
+    <string name="emulation_active_label">ACTIVE</string>
+    <string name="emulation_standby_label">STANDBY</string>
+    <string name="emulation_toggle_start">Activate Tag</string>
+    <string name="emulation_toggle_stop">Deactivate</string>
+    <string name="virtual_card_empty">No tag loaded yet</string>
+    <string name="label_lock_readonly">Read-Only</string>
+    <string name="label_lock_writable">Writable</string>
+    <string name="lock_readonly_desc">Other phones can read this tag, not overwrite it</string>
+    <string name="lock_writable_desc">Other NFC writer apps can overwrite this virtual tag</string>
+
+    <string name="make_step1_title">What should this tag do?</string>
+    <string name="make_step1_subtitle">Pick a category first, then follow the steps.</string>
+    <string name="make_social_step_title">Which social profile?</string>
+    <string name="make_social_step_subtitle">Pick the platform you want this tag to open.</string>
+    <string name="make_step2_change_type">Change type</string>
+    <string name="make_step2_change_category">Back</string>
+    <string name="make_step2_change_social">Change platform</string>
+    <string name="make_copy_instead">Or scan a physical NFC tag to copy</string>
+    <string name="make_protection_title">Tag Protection</string>
+    <string name="label_tag_name_input">Tag Name (optional)</string>
+    <string name="action_write_card">Save Tag</string>
+    <string name="action_clear_inputs">Clear</string>
+    <string name="action_clear_card">Clear Tag</string>
+    <string name="action_go_make_tag">Make a Tag</string>
+
+    <string name="copy_screen_title">Copy Tag</string>
+    <string name="copy_scanning_title">Ready to scan</string>
+    <string name="copy_scanning_body">Hold any NFC tag, keycard, or sticker against the back of your phone.</string>
+    <string name="copy_nfc_off_hint">Turn on NFC first to scan a physical tag.</string>
+    <string name="copy_result_title">Scanned Tag Ready</string>
+    <string name="copy_save_and_use">Save &amp; Use Tag</string>
+    <string name="copy_scan_again">Scan Another</string>
+    <string name="copy_or_duplicate_tip">Tip: You can also duplicate any saved tag using the copy button on its row.</string>
+    <string name="copy_err_not_ndef">This tag does not contain readable NDEF data.</string>
+    <string name="copy_err_empty">This NFC tag is empty.</string>
+    <string name="copy_err_too_large">Tag data exceeds the 2048 B card limit.</string>
+    <string name="copy_err_read_failed">Could not finish reading. Hold the tag steady and try again.</string>
+
+    <string name="section_saved_cards">Saved Tags</string>
+    <string name="empty_saved_cards">No saved tags yet. Tap Make a Tag to create one.</string>
+    <string name="wallet_view_badge">Wallet Deck</string>
+    <string name="wallet_photo_set">Set Photo</string>
+    <string name="wallet_photo_change">Photo</string>
+    <string name="wallet_photo_remove">Remove</string>
+    <string name="wallet_use_card">Use Card</string>
+    <string name="wallet_tap_to_expand">Tap card to expand or activate</string>
+    <string name="msg_cover_updated">Card cover photo updated</string>
+    <string name="msg_cover_removed">Card cover photo removed</string>
+    <string name="msg_cover_failed">Could not load selected photo</string>
+
+    <string name="qs_tile_label">NFC Tag</string>
+    <string name="qs_tile_nfc_off">NFC off · Tap to open</string>
+    <string name="qs_tile_no_tag">No tag · Tap to set up</string>
+    <string name="msg_qs_tile_added">Quick Settings tile added</string>
+    <string name="msg_qs_tile_already">Quick Settings tile is already in your panel</string>
+    <string name="msg_qs_tile_manual">Swipe down Quick Settings twice, tap Edit (pencil), and drag NFC Tag to your panel</string>
+
+    <string name="widget_toggle_name">NFC Tag Toggle</string>
+    <string name="widget_toggle_description">Tap to activate or stop NFC tag</string>
+    <string name="widget_preset_name">Pinned NFC Card</string>
+    <string name="widget_preset_description">Tap to load and activate a saved NFC card</string>
+    <string name="widget_tap_to_activate">TAP TO ACTIVATE</string>
+    <string name="widget_select_card_prompt">Select card</string>
+    <string name="widget_config_title">Pin Card to Widget</string>
+    <string name="widget_current_card">Current Card</string>
+
+    <string name="pin_dialog_title">Pin a Home Screen Widget</string>
+    <string name="pin_dialog_body">Choose a widget for one-tap NFC activation from your launcher.</string>
+    <string name="pin_widget_toggle_title">NFC Tag Toggle</string>
+    <string name="pin_widget_toggle_desc">Turns your current active tag on or off</string>
+    <string name="pin_widget_preset_title">Pinned NFC Card</string>
+    <string name="pin_widget_preset_desc">Loads and activates a chosen saved tag</string>
+    <string name="msg_widget_pin_requested">Follow launcher prompt to place widget</string>
+    <string name="msg_widget_pin_unsupported">Long-press your home screen and open Widgets to add it</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme_label">Theme</string>
+    <string name="settings_saved_view_label">Saved Tags View</string>
+    <string name="settings_saved_view_hint">Simplified shows compact rows; Wallet stacks customizable card fronts</string>
+    <string name="settings_section_tag">Tag Behavior</string>
+    <string name="settings_default_lock_label">Default Tag Protection</string>
+    <string name="settings_auto_activate_write">Auto-activate after saving tag</string>
+    <string name="settings_auto_activate_select">Auto-activate when picking saved tag</string>
+    <string name="settings_prefer_foreground">Prioritize TagLink while app is open</string>
+    <string name="settings_stop_on_leave">Deactivate tag when leaving app</string>
+    <string name="settings_peer_exchange_label">Two-Way Tap</string>
+    <string name="settings_section_shortcuts">Shortcuts &amp; Hardware</string>
+    <string name="settings_open_nfc">Android NFC Settings</string>
+    <string name="settings_pin_widget">Pin Home Screen Widget</string>
+    <string name="settings_add_qs_tile">Add Quick Settings Tile</string>
+
+    <string name="tutorial_skip">Skip</string>
+    <string name="tutorial_back">Back</string>
+    <string name="tutorial_next">Next</string>
+    <string name="tutorial_finish">Start Using TagLink</string>
+    <string name="tutorial_step1_title">Check Your NFC Status</string>
+    <string name="tutorial_step1_body">Device NFC must be ON before activating or scanning tags. This top badge always shows whether NFC is ready.</string>
+    <string name="tutorial_step2_title">Make a Tag in Simple Steps</string>
+    <string name="tutorial_step2_body">Tap Make Tag, choose Socials (Instagram, TikTok, X, WhatsApp, and more) or another tag type, then enter your details.</string>
+    <string name="tutorial_step3_title">Copy a Physical NFC Tag</string>
+    <string name="tutorial_step3_body">Have a real NFC card or sticker? Use Copy Tag to hold it against your phone and clone its tag into TagLink.</string>
+    <string name="tutorial_step4_title">Activate &amp; Tap Any Phone</string>
+    <string name="tutorial_step4_body">Open Activate Tag, turn it on, and hold the back of your unlocked phone near another phone for 1 second to share.</string>
+    <string name="tutorial_step5_title">One-Tap Shortcuts</string>
+    <string name="tutorial_step5_body">Pin a Home Widget or Quick Settings Tile here so you can turn NFC sharing on or off without opening the app.</string>
+
+    <string name="cd_back">Back</string>
+    <string name="cd_tutorial">Interactive tutorial</string>
+    <string name="cd_app_settings">App settings</string>
+    <string name="cd_delete_saved_link">Delete saved tag</string>
+    <string name="cd_copy_saved_link">Duplicate saved tag</string>
+    <string name="cd_load_saved_link">Load tag</string>
+    <string name="cd_nfc_settings">NFC settings</string>
+    <string name="cd_wallet_cover_photo">Customize card front photo</string>
+    <string name="cd_wallet_remove_photo">Remove custom card photo</string>
+
+    <string name="error_nfc_off">Turn on NFC first</string>
+    <string name="error_no_card_loaded">Write or select a tag first</string>
+    <string name="error_payload_too_long">Exceeds 2048 B limit</string>
+    <string name="error_invalid_social">Enter a valid username, handle, or profile link</string>
+    <string name="error_invalid_whatsapp">Enter a valid phone number or WhatsApp link</string>
+    <string name="error_invalid_url">Enter a valid web link (for example https://example.com)</string>
+    <string name="error_empty_text">Enter text</string>
+    <string name="error_empty_contact">Enter a name, phone number, or email</string>
+    <string name="error_empty_wifi_ssid">Enter the Wi-Fi network name (SSID)</string>
+    <string name="error_empty_email">Enter a valid email address</string>
+    <string name="error_empty_phone">Enter a phone number</string>
+    <string name="error_empty_geo">Enter valid latitude and longitude coordinates</string>
+    <string name="error_empty_package">Enter a valid Android package name (e.g. com.instagram.android)</string>
+    <string name="error_empty_mime">Enter MIME type and data</string>
+
+    <string name="msg_card_written">Tag saved</string>
+    <string name="msg_card_copied">Tag copied and loaded</string>
+    <string name="msg_card_cleared">Tag cleared</string>
+    <string name="action_pick_contact">Pick from Contacts</string>
+    <string name="msg_contact_imported">Contact details loaded</string>
+    <string name="msg_contact_import_failed">Could not read details from the selected contact</string>
+    <string name="msg_contact_permission_partial">Contacts permission denied. Only basic info could be read.</string>
+    <string name="notif_channel_incoming_name">Incoming NFC Tags</string>
+    <string name="notif_incoming_tag_title">Tag received</string>
+    <string name="notif_incoming_tag_tap">Tap to open</string>
+    <string name="notif_channel_keep_alive_name">Active NFC Tag</string>
+    <string name="notif_keep_alive_title">NFC active · %1$s</string>
+    <string name="notif_keep_alive_body">Running in background so taps stay ready off-screen</string>
+    <string name="settings_section_background">Background &amp; Power</string>
+    <string name="settings_tap_notifications_label">Tap notifications</string>
+    <string name="settings_tap_notifications_hint">Show an alert whenever another phone shares a tag while TagLink is closed</string>
+    <string name="settings_battery_unrestricted_label">Battery usage</string>
+    <string name="settings_battery_status_unrestricted">Unrestricted</string>
+    <string name="settings_battery_status_restricted">Optimized · Tap to set Unrestricted</string>
+    <string name="settings_battery_hint">Choose Unrestricted in Android battery settings so background NFC stays active after closing the app.</string>
+    <string name="settings_notifications_label">Notification permission</string>
+    <string name="settings_notifications_status_on">Allowed</string>
+    <string name="settings_notifications_status_off">Off · Tap to allow</string>
+
+    <string name="cd_two_way_tap_info">Explain Two-Way Tap options</string>
+    <string name="two_way_info_title">Two-Way Tap Modes</string>
+    <string name="two_way_info_off_title">Off</string>
+    <string name="two_way_info_off_body">One-way sharing only. Acts like a standard NFC card and opens your link or contact on the other phone.</string>
+    <string name="two_way_info_dynamic_title">Dynamic (Default)</string>
+    <string name="two_way_info_dynamic_body">Supports both one-way and two-way sharing. Works with iPhones and phones without TagLink, and swaps with other TagLink phones—just a little slower for two-way.</string>
+    <string name="two_way_info_true_p2p_title">True P2P</string>
+    <string name="two_way_info_true_p2p_body">Only does two-way sharing, but very fast. Will not work on iPhones or phones that don\'t have TagLink installed.</string>
+
+    <string name="setup_dialog_title">Welcome to TagLink</string>
+    <string name="setup_dialog_subtitle">Allow notifications and unrestricted battery so background NFC sharing stays reliable.</string>
+    <string name="setup_perm_nfc_title">NFC status</string>
+    <string name="setup_perm_nfc_ready">Ready</string>
+    <string name="setup_perm_nfc_off">Turn on</string>
+    <string name="setup_perm_notif_title">Notifications</string>
+    <string name="setup_perm_notif_desc">Keeps active NFC status stable in the background</string>
+    <string name="setup_perm_battery_title">Unrestricted battery</string>
+    <string name="setup_perm_battery_desc">Tap Configure, find TagLink, and pick Unrestricted</string>
+    <string name="setup_status_allowed">Allowed</string>
+    <string name="setup_status_allow">Allow</string>
+    <string name="setup_status_unrestricted">Unrestricted</string>
+    <string name="setup_status_configure">Configure</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_skip">Skip for now</string>
+
+    <string name="settings_section_about">Open Source</string>
+    <string name="settings_star_github_title">Star on GitHub</string>
+    <string name="settings_star_github_sub">Armaan-AtoA/TagLink</string>
+    <string name="github_repo_url">https://github.com/Armaan-AtoA/TagLink</string>
+
+    <string name="action_got_it">Got it</string>
+    <string name="action_cancel">Cancel</string>
+</resources>
