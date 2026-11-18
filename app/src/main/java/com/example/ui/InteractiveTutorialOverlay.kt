@@ -2,13 +2,8 @@ package com.example.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateRectAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -49,8 +44,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -64,8 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.ui.theme.LocalTagExtendedColors
-import kotlin.math.hypot
-import kotlin.math.max
 
 enum class TutorialTarget {
   NFC_STATUS,
@@ -127,19 +122,6 @@ fun InteractiveTutorialOverlay(
   val primaryColor = MaterialTheme.colorScheme.primary
   val density = LocalDensity.current
 
-  val infiniteTransition = rememberInfiniteTransition(label = "tutorial_pulse")
-  val pulseProgress by
-    infiniteTransition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1f,
-      animationSpec =
-        infiniteRepeatable(
-          animation = tween(durationMillis = 1400, easing = LinearEasing),
-          repeatMode = RepeatMode.Restart,
-        ),
-      label = "pulse_ring",
-    )
-
   BoxWithConstraints(
     modifier = Modifier.fillMaxSize().testTag("tutorial_overlay"),
   ) {
@@ -147,9 +129,9 @@ fun InteractiveTutorialOverlay(
     val rootHeightPx = with(density) { maxHeight.toPx() }
     val defaultRect =
       Rect(
-        left = rootWidthPx * 0.25f,
+        left = rootWidthPx * 0.2f,
         top = rootHeightPx * 0.25f,
-        right = rootWidthPx * 0.75f,
+        right = rootWidthPx * 0.8f,
         bottom = rootHeightPx * 0.40f,
       )
     val rawTarget = targetBounds[step.target] ?: defaultRect
@@ -159,29 +141,29 @@ fun InteractiveTutorialOverlay(
         targetValue = rawTarget,
         animationSpec =
           spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
+            dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
           ),
         label = "spotlight_rect",
       )
 
-    val center = animatedTarget.center
-    val paddingPx = with(density) { 10.dp.toPx() }
-    val circleRadius =
-      max(
-        with(density) { 36.dp.toPx() },
-        (max(animatedTarget.width, animatedTarget.height) * 0.5f + paddingPx)
-          .coerceAtMost(rootWidthPx * 0.46f),
+    val padPx = with(density) { 8.dp.toPx() }
+    val cornerPx = with(density) { 6.dp.toPx() }
+    val spotlightRect =
+      Rect(
+        left = (animatedTarget.left - padPx).coerceAtLeast(0f),
+        top = (animatedTarget.top - padPx).coerceAtLeast(0f),
+        right = (animatedTarget.right + padPx).coerceAtMost(rootWidthPx),
+        bottom = (animatedTarget.bottom + padPx).coerceAtMost(rootHeightPx),
       )
 
     Canvas(
       modifier =
         Modifier.fillMaxSize()
           .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-          .pointerInput(safeIndex, center, circleRadius) {
+          .pointerInput(safeIndex, spotlightRect) {
             detectTapGestures { tapOffset ->
-              val dist = hypot(tapOffset.x - center.x, tapOffset.y - center.y)
-              if (dist <= circleRadius) {
+              if (spotlightRect.contains(tapOffset)) {
                 onNext()
               }
             }
@@ -189,31 +171,28 @@ fun InteractiveTutorialOverlay(
     ) {
       drawRect(color = Color.Black.copy(alpha = 0.72f))
 
-      drawCircle(
+      val topLeft = Offset(spotlightRect.left, spotlightRect.top)
+      val size = Size(spotlightRect.width, spotlightRect.height)
+      val corner = CornerRadius(cornerPx, cornerPx)
+
+      drawRoundRect(
         color = Color.Transparent,
-        radius = circleRadius,
-        center = center,
+        topLeft = topLeft,
+        size = size,
+        cornerRadius = corner,
         blendMode = BlendMode.Clear,
       )
 
-      drawCircle(
+      drawRoundRect(
         color = primaryColor,
-        radius = circleRadius,
-        center = center,
-        style = Stroke(width = 2.5.dp.toPx()),
-      )
-
-      val expandingRadius = circleRadius + (22.dp.toPx() * pulseProgress)
-      val ringAlpha = (1f - pulseProgress).coerceIn(0f, 1f) * 0.75f
-      drawCircle(
-        color = primaryColor.copy(alpha = ringAlpha),
-        radius = expandingRadius,
-        center = center,
+        topLeft = topLeft,
+        size = size,
+        cornerRadius = corner,
         style = Stroke(width = 2.dp.toPx()),
       )
     }
 
-    val placeAbove = center.y > rootHeightPx * 0.52f
+    val placeAbove = spotlightRect.center.y > rootHeightPx * 0.52f
     Box(
       modifier =
         Modifier.fillMaxSize()
@@ -270,7 +249,7 @@ fun InteractiveTutorialOverlay(
         AnimatedContent(
           targetState = step,
           transitionSpec = {
-            fadeIn(animationSpec = tween(180)) togetherWith fadeOut(animationSpec = tween(140))
+            fadeIn(animationSpec = tween(160)) togetherWith fadeOut(animationSpec = tween(120))
           },
           label = "tutorial_step_content",
         ) { currentStep ->
@@ -290,12 +269,7 @@ fun InteractiveTutorialOverlay(
                   imageVector = Icons.Outlined.Nfc,
                   contentDescription = null,
                   tint = MaterialTheme.colorScheme.primary,
-                  modifier =
-                    Modifier.size(20.dp).graphicsLayer {
-                      val scale = 0.94f + (0.12f * (1f - pulseProgress))
-                      scaleX = scale
-                      scaleY = scale
-                    },
+                  modifier = Modifier.size(20.dp),
                 )
               }
               Text(
@@ -312,12 +286,6 @@ fun InteractiveTutorialOverlay(
             )
           }
         }
-
-        Text(
-          text = stringResource(R.string.tutorial_tap_circle_hint),
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.primary,
-        )
 
         Row(
           modifier = Modifier.fillMaxWidth(),

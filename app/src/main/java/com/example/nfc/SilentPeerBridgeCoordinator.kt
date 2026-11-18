@@ -119,9 +119,10 @@ object SilentPeerBridgeCoordinator {
       lastExecutedAtMs = now
     }
 
+    val settings = AppSettingsStore(context).readSettings()
     val canLaunchDirectly = (context is Activity) || AppForegroundTracker.isAppVisible()
     val launched = NdefActionExecutor.execute(context, canonicalBytes)
-    if (!canLaunchDirectly) {
+    if (!canLaunchDirectly && settings.incomingTagNotificationsEnabled) {
       IncomingTagNotifier.showIncomingTagNotification(context, canonicalBytes)
     }
     return launched

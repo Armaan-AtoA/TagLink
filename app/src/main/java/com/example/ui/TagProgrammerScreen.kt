@@ -99,6 +99,7 @@ fun TagProgrammerScreen(
   onNextTutorialStep: () -> Unit,
   onPrevTutorialStep: () -> Unit,
   onDismissTutorial: () -> Unit,
+  onDismissSetupPrompt: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onDismissPinWidget: () -> Unit,
   onPinWidget: (WidgetType) -> Unit,
@@ -129,7 +130,9 @@ fun TagProgrammerScreen(
   onOpenBatterySettings: () -> Unit,
   onOpenNotificationSettings: () -> Unit,
   onOpenNfcSettings: () -> Unit,
+  onOpenGithub: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onRefreshPermissions: () -> Unit,
   onConsumeStatusMessage: () -> Unit,
 ) {
   val context = LocalContext.current
@@ -162,12 +165,22 @@ fun TagProgrammerScreen(
       contract = ActivityResultContracts.RequestPermission(),
       onResult = { _ -> pickContactLauncher.launch(null) },
     )
-  var askedNotificationPermission by rememberSaveable { mutableStateOf(false) }
   val notificationPermissionLauncher =
     rememberLauncherForActivityResult(
       contract = ActivityResultContracts.RequestPermission(),
-      onResult = { _ -> Unit },
+      onResult = { _ -> onRefreshPermissions() },
     )
+
+  LaunchedEffect(state.showSetupPrompt) {
+    if (
+      state.showSetupPrompt &&
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+          PackageManager.PERMISSION_GRANTED
+    ) {
+      notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+  }
 
   LaunchedEffect(state.statusMessage) {
     val msg = state.statusMessage
@@ -244,22 +257,7 @@ fun TagProgrammerScreen(
           AppScreen.ACTIVATE_TAG -> {
             ActivateTagScreen(
               state = state,
-              onToggleEmulation = { enable ->
-                if (
-                  enable &&
-                    !askedNotificationPermission &&
-                    state.settings.peerExchangeMode != PeerExchangeMode.OFF &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(
-                      context,
-                      Manifest.permission.POST_NOTIFICATIONS,
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                  askedNotificationPermission = true
-                  notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                onToggleEmulation(enable)
-              },
+              onToggleEmulation = onToggleEmulation,
               onToggleReadOnly = onToggleReadOnly,
               onClearCard = onClearCard,
               onLoadSavedCard = onLoadSavedCard,
@@ -333,6 +331,19 @@ fun TagProgrammerScreen(
               isIgnoringBatteryOptimizations = state.isIgnoringBatteryOptimizations,
               areNotificationsEnabled = state.areNotificationsEnabled,
               onUpdateSettings = onUpdateSettings,
+              onToggleTapNotifications = { enable ->
+                if (
+                  enable &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                      context,
+                      Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                  notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                onUpdateSettings { it.copy(incomingTagNotificationsEnabled = enable) }
+              },
               onOpenBatterySettings = onOpenBatterySettings,
               onRequestBackgroundAlerts = {
                 if (
@@ -350,6 +361,7 @@ fun TagProgrammerScreen(
               onOpenNfcSettings = onOpenNfcSettings,
               onOpenPinWidget = onOpenPinWidget,
               onRequestAddQuickTile = onRequestAddQuickTile,
+              onOpenGithub = onOpenGithub,
               modifier = contentModifier,
             )
           }
@@ -364,7 +376,32 @@ fun TagProgrammerScreen(
       )
     }
 
-    if (state.showTutorial) {
+    if (state.showSetupPrompt) {
+      WelcomeSetupDialog(
+        nfcStatus = state.nfcStatus,
+        areNotificationsEnabled = state.areNotificationsEnabled,
+        isIgnoringBatteryOptimizations = state.isIgnoringBatteryOptimizations,
+        onOpenNfcSettings = onOpenNfcSettings,
+        onRequestNotifications = {
+          if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+              ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+              ) != PackageManager.PERMISSION_GRANTED
+          ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+          } else {
+            onOpenNotificationSettings()
+          }
+        },
+        onOpenBatterySettings = onOpenBatterySettings,
+        onContinue = onDismissSetupPrompt,
+        onSkip = onDismissSetupPrompt,
+      )
+    }
+
+    if (state.showTutorial && !state.showSetupPrompt) {
       InteractiveTutorialOverlay(
         stepIndex = state.tutorialStep,
         targetBounds = tutorialBounds,

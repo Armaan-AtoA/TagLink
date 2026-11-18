@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.nfc.NfcAdapter
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -152,6 +153,7 @@ class MainActivity : ComponentActivity() {
           onNextTutorialStep = viewModel::nextTutorialStep,
           onPrevTutorialStep = viewModel::prevTutorialStep,
           onDismissTutorial = viewModel::dismissTutorial,
+          onDismissSetupPrompt = viewModel::dismissSetupPrompt,
           onOpenPinWidget = viewModel::openPinWidgetDialog,
           onDismissPinWidget = viewModel::dismissPinWidgetDialog,
           onPinWidget = viewModel::pinWidget,
@@ -188,7 +190,18 @@ class MainActivity : ComponentActivity() {
           onOpenNfcSettings = {
             startActivity(NfcHardwareHelper.createNfcSettingsIntent(this@MainActivity))
           },
+          onOpenGithub = {
+            runCatching {
+              startActivity(
+                Intent(
+                  Intent.ACTION_VIEW,
+                  Uri.parse(getString(R.string.github_repo_url)),
+                )
+              )
+            }
+          },
           onRequestAddQuickTile = viewModel::requestAddQuickTile,
+          onRefreshPermissions = viewModel::refreshState,
           onConsumeStatusMessage = viewModel::consumeStatusMessage,
         )
       }

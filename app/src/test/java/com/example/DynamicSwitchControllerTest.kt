@@ -179,8 +179,30 @@ class DynamicSwitchControllerTest {
     assertEquals("https://github.com/bob_dyn", started.dataString)
     assertEquals(beforeCount, dao.observeSavedLinks().first().size)
 
-    // Verify off-screen background HCE delivery also posts heads-up notification so Android BAL cannot drop it
+    // By default (incomingTagNotificationsEnabled = false), no per-tap notification is posted
     val notifManager = app.getSystemService(NotificationManager::class.java)
+    assertEquals(0, shadowOf(notifManager).allNotifications.size)
+
+    // When user enables Tap notifications in Settings, background peer exchange posts "Tag received"
+    AppSettingsStore(app).updateSettings { it.copy(incomingTagNotificationsEnabled = true) }
+    SilentPeerBridgeCoordinator.resetDedupeForTest()
+    val carolPacket =
+      NdefBridgeCodec.encodePeerPacket(
+        PeerExchangePacket(
+          senderId = "peer-carol",
+          label = "Carol",
+          ndefBytes = NdefMessageCodec.encodeRecords(listOf(NdefRecordDraft.Url("https://github.com/carol_dyn"))),
+        )
+      )
+    val carolApdu =
+      byteArrayOf(
+        T4tApduEngine.CLA_PROPRIETARY.toByte(),
+        T4tApduEngine.INS_PEER_EXCHANGE.toByte(),
+        0x00,
+        0x00,
+        carolPacket.size.toByte(),
+      ) + carolPacket
+    serviceProcess2.processCommandApdu(carolApdu, null)
     val posted = shadowOf(notifManager).allNotifications
     assertEquals(1, posted.size)
     assertEquals("Tag received", posted[0].extras.getString(android.app.Notification.EXTRA_TITLE))
@@ -191,6 +213,16 @@ class DynamicSwitchControllerTest {
     val tap3Records = readNdefFromService(serviceProcess2)
     assertEquals(1, tap3Records.size)
     assertEquals("https://instagram.com/alice_dyn", (tap3Records[0] as NdefRecordDraft.Url).url)
+  }
+
+  @Test
+  fun freshSettingsDefaults_keepTapNotificationsOffAndRequireFirstRunSetup() {
+    app.getSharedPreferences("taglink_app_settings", Context.MODE_PRIVATE).edit().clear().commit()
+    val defaults = AppSettingsStore(app).readSettings()
+    assertEquals(PeerExchangeMode.DYNAMIC, defaults.peerExchangeMode)
+    assertFalse(defaults.incomingTagNotificationsEnabled)
+    assertFalse(defaults.hasCompletedSetup)
+    assertFalse(defaults.hasCompletedTutorial)
   }
 
   @Test

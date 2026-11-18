@@ -121,7 +121,6 @@
     <string name="tutorial_back">Back</string>
     <string name="tutorial_next">Next</string>
     <string name="tutorial_finish">Start Using TagLink</string>
-    <string name="tutorial_tap_circle_hint">Tap the highlighted area or Next</string>
     <string name="tutorial_step1_title">Check Your NFC Status</string>
     <string name="tutorial_step1_body">Device NFC must be ON before activating or scanning tags. This top badge always shows whether NFC is ready.</string>
     <string name="tutorial_step2_title">Make a Tag in Simple Steps</string>
@@ -172,12 +171,46 @@
     <string name="notif_keep_alive_title">NFC active · %1$s</string>
     <string name="notif_keep_alive_body">Running in background so taps stay ready off-screen</string>
     <string name="settings_section_background">Background &amp; Power</string>
+    <string name="settings_tap_notifications_label">Tap notifications</string>
+    <string name="settings_tap_notifications_hint">Show an alert whenever another phone shares a tag while TagLink is closed</string>
     <string name="settings_battery_unrestricted_label">Battery usage</string>
     <string name="settings_battery_status_unrestricted">Unrestricted</string>
     <string name="settings_battery_status_restricted">Optimized · Tap to set Unrestricted</string>
     <string name="settings_battery_hint">Choose Unrestricted in Android battery settings so background NFC stays active after closing the app.</string>
-    <string name="settings_notifications_label">Background alerts</string>
+    <string name="settings_notifications_label">Notification permission</string>
     <string name="settings_notifications_status_on">Allowed</string>
     <string name="settings_notifications_status_off">Off · Tap to allow</string>
+
+    <string name="cd_two_way_tap_info">Explain Two-Way Tap options</string>
+    <string name="two_way_info_title">Two-Way Tap Modes</string>
+    <string name="two_way_info_off_title">Off</string>
+    <string name="two_way_info_off_body">One-way sharing only. Acts like a standard NFC card and opens your link or contact on the other phone.</string>
+    <string name="two_way_info_dynamic_title">Dynamic (Default)</string>
+    <string name="two_way_info_dynamic_body">Supports both one-way and two-way sharing. Works with iPhones and phones without TagLink, and swaps with other TagLink phones—just a little slower for two-way.</string>
+    <string name="two_way_info_true_p2p_title">True P2P</string>
+    <string name="two_way_info_true_p2p_body">Only does two-way sharing, but very fast. Will not work on iPhones or phones that don\'t have TagLink installed.</string>
+
+    <string name="setup_dialog_title">Welcome to TagLink</string>
+    <string name="setup_dialog_subtitle">Allow notifications and unrestricted battery so background NFC sharing stays reliable.</string>
+    <string name="setup_perm_nfc_title">NFC status</string>
+    <string name="setup_perm_nfc_ready">Ready</string>
+    <string name="setup_perm_nfc_off">Turn on</string>
+    <string name="setup_perm_notif_title">Notifications</string>
+    <string name="setup_perm_notif_desc">Keeps active NFC status stable in the background</string>
+    <string name="setup_perm_battery_title">Unrestricted battery</string>
+    <string name="setup_perm_battery_desc">Tap Configure, find TagLink, and pick Unrestricted</string>
+    <string name="setup_status_allowed">Allowed</string>
+    <string name="setup_status_allow">Allow</string>
+    <string name="setup_status_unrestricted">Unrestricted</string>
+    <string name="setup_status_configure">Configure</string>
+    <string name="setup_continue">Continue</string>
+    <string name="setup_skip">Skip for now</string>
+
+    <string name="settings_section_about">Open Source</string>
+    <string name="settings_star_github_title">Star on GitHub</string>
+    <string name="settings_star_github_sub">Armaan-AtoA/TagLink</string>
+    <string name="github_repo_url">https://github.com/Armaan-AtoA/TagLink</string>
+
+    <string name="action_got_it">Got it</string>
     <string name="action_cancel">Cancel</string>
 </resources>

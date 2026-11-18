@@ -155,6 +155,7 @@ data class CopyTagUiState(
 
 data class TagUiState(
   val currentScreen: AppScreen = AppScreen.HOME,
+  val showSetupPrompt: Boolean = false,
   val showTutorial: Boolean = false,
   val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
@@ -186,6 +187,7 @@ data class TagUiState(
     if (this === other) return true
     if (other !is TagUiState) return false
     return currentScreen == other.currentScreen &&
+      showSetupPrompt == other.showSetupPrompt &&
       showTutorial == other.showTutorial &&
       tutorialStep == other.tutorialStep &&
       showPinWidgetDialog == other.showPinWidgetDialog &&
@@ -213,6 +215,7 @@ data class TagUiState(
 
 private data class LocalProgrammerState(
   val currentScreen: AppScreen = AppScreen.HOME,
+  val showSetupPrompt: Boolean = false,
   val showTutorial: Boolean = false,
   val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
@@ -249,6 +252,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     combine(localState, repository.savedLinks) { local, saved ->
         TagUiState(
           currentScreen = local.currentScreen,
+          showSetupPrompt = local.showSetupPrompt,
           showTutorial = local.showTutorial,
           tutorialStep = local.tutorialStep,
           showPinWidgetDialog = local.showPinWidgetDialog,
@@ -283,8 +287,10 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     val status = NfcHardwareHelper.getStatus(app)
     val firstRecord = active.records.firstOrNull()
     NfcKeepAliveService.sync(app)
+    val needsSetup = !settings.hasCompletedSetup
     return LocalProgrammerState(
-      showTutorial = !settings.hasCompletedTutorial,
+      showSetupPrompt = needsSetup,
+      showTutorial = !needsSetup && !settings.hasCompletedTutorial,
       tutorialStep = 0,
       settings = settings,
       nfcStatus = status,
@@ -377,10 +383,23 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     localState.update { it.copy(tutorialStep = (it.tutorialStep - 1).coerceAtLeast(0)) }
   }
 
-  fun dismissTutorial() {
-    val updated = repository.updateSettings { it.copy(hasCompletedTutorial = true) }
+  fun dismissSetupPrompt() {
+    val updated = repository.updateSettings { it.copy(hasCompletedSetup = true) }
     localState.update {
       it.copy(
+        showSetupPrompt = false,
+        showTutorial = !updated.hasCompletedTutorial,
+        tutorialStep = 0,
+        settings = updated,
+      )
+    }
+  }
+
+  fun dismissTutorial() {
+    val updated = repository.updateSettings { it.copy(hasCompletedSetup = true, hasCompletedTutorial = true) }
+    localState.update {
+      it.copy(
+        showSetupPrompt = false,
         showTutorial = false,
         tutorialStep = 0,
         settings = updated,

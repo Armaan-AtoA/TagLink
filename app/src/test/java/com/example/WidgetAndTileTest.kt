@@ -256,8 +256,18 @@ class WidgetAndTileTest {
     val viewModel = ViewModelProvider(composeRule.activity)[TagProgrammerViewModel::class.java]
     viewModel.refreshState()
 
-    // Interactive tutorial auto-starts on first launch
+    // First-run permissions & battery optimization prompt appears before the tutorial
+    composeRule.onNodeWithTag("welcome_setup_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("setup_notifications_row").assertIsDisplayed()
+    composeRule.onNodeWithTag("setup_battery_row").assertIsDisplayed()
+    composeRule.onNodeWithTag("setup_continue_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("welcome_setup_dialog").assertDoesNotExist()
+    assertTrue(AppSettingsStore(viewModel.getApplication()).readSettings().hasCompletedSetup)
+
+    // Interactive tutorial auto-starts right after setup prompt without removed hint copy
     composeRule.onNodeWithTag("tutorial_overlay").assertIsDisplayed()
+    composeRule.onNodeWithText("Tap the highlighted area or Next").assertDoesNotExist()
     repeat(TagProgrammerViewModel.TUTORIAL_STEP_COUNT - 1) {
       composeRule.onNodeWithTag("tutorial_next_button").performClick()
     }
@@ -286,7 +296,7 @@ class WidgetAndTileTest {
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("tutorial_overlay").assertDoesNotExist()
 
-    // Settings: dark theme toggle, default Simplified view -> switch to Wallet, verify Replay Tutorial removed
+    // Settings: dark theme toggle, default Simplified view -> switch to Wallet, verify Two-Way Tap info, Tap notifications, and Star on GitHub
     composeRule.onNodeWithTag("app_settings_button").performClick()
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("settings_replay_tutorial_button").assertDoesNotExist()
@@ -298,6 +308,16 @@ class WidgetAndTileTest {
     assertEquals(ThemeMode.DARK, viewModel.uiState.value.settings.themeMode)
     assertEquals(SavedTagViewMode.WALLET, viewModel.uiState.value.settings.savedTagViewMode)
     assertEquals(PeerExchangeMode.DYNAMIC, viewModel.uiState.value.settings.peerExchangeMode)
+
+    // Two-Way Tap info button explains all three modes & mentions iPhone / TagLink requirement for True P2P
+    composeRule.onNodeWithTag("two_way_tap_info_button").performScrollTo().performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("two_way_tap_info_dialog").assertIsDisplayed()
+    composeRule.onNodeWithText("Will not work on iPhones", substring = true).assertIsDisplayed()
+    composeRule.onNodeWithTag("two_way_info_close_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("two_way_tap_info_dialog").assertDoesNotExist()
+
     composeRule.onNodeWithTag("peer_mode_off").performScrollTo().performClick()
     composeRule.waitForIdle()
     assertEquals(PeerExchangeMode.OFF, viewModel.uiState.value.settings.peerExchangeMode)
@@ -307,6 +327,25 @@ class WidgetAndTileTest {
     composeRule.onNodeWithTag("peer_mode_dynamic").performClick()
     composeRule.waitForIdle()
     assertEquals(PeerExchangeMode.DYNAMIC, viewModel.uiState.value.settings.peerExchangeMode)
+
+    // Tap notifications toggle defaults OFF and can be switched ON / OFF
+    assertFalse(viewModel.uiState.value.settings.incomingTagNotificationsEnabled)
+    composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("setting_tap_notifications"))
+    composeRule.onNodeWithTag("setting_tap_notifications").performClick()
+    composeRule.waitForIdle()
+    assertTrue(viewModel.uiState.value.settings.incomingTagNotificationsEnabled)
+    composeRule.onNodeWithTag("setting_tap_notifications").performClick()
+    composeRule.waitForIdle()
+    assertFalse(viewModel.uiState.value.settings.incomingTagNotificationsEnabled)
+
+    // Star on GitHub button opens Armaan-AtoA/TagLink repository
+    composeRule.onNodeWithTag("settings_list").performScrollToNode(hasTestTag("settings_star_github_button"))
+    composeRule.onNodeWithTag("settings_star_github_button").assertIsDisplayed().performClick()
+    composeRule.waitForIdle()
+    val githubIntent = shadowOf(context as Application).nextStartedActivity
+    assertNotNull(githubIntent)
+    assertEquals(Intent.ACTION_VIEW, githubIntent!!.action)
+    assertEquals("https://github.com/Armaan-AtoA/TagLink", githubIntent.dataString)
 
     // Guided 3-step Make Tag: verify Contact Card shows Pick from Contacts, then Socials -> Instagram -> @username -> Save Tag
     composeRule.onNodeWithTag("back_button").performClick()

@@ -29,7 +29,9 @@ data class AppSettings(
   val preferForegroundHce: Boolean = true,
   val stopOnLeaveApp: Boolean = false,
   val peerExchangeMode: PeerExchangeMode = PeerExchangeMode.DYNAMIC,
+  val incomingTagNotificationsEnabled: Boolean = false,
   val bridgeDeviceId: String = "",
+  val hasCompletedSetup: Boolean = false,
   val hasCompletedTutorial: Boolean = false,
 )
 
@@ -54,6 +56,8 @@ class AppSettingsStore(context: Context) {
       PeerExchangeMode.entries.firstOrNull { it.name == peerModeName }
         ?: PeerExchangeMode.DYNAMIC
     val deviceId = ensureBridgeDeviceId()
+    val hasCompletedTutorial = prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false)
+    val hasCompletedSetup = prefs.getBoolean(KEY_SETUP_COMPLETED, hasCompletedTutorial)
     return AppSettings(
       themeMode = themeMode,
       savedTagViewMode = savedTagViewMode,
@@ -63,8 +67,10 @@ class AppSettingsStore(context: Context) {
       preferForegroundHce = prefs.getBoolean(KEY_PREFER_FOREGROUND, true),
       stopOnLeaveApp = prefs.getBoolean(KEY_STOP_ON_LEAVE, false),
       peerExchangeMode = peerExchangeMode,
+      incomingTagNotificationsEnabled = prefs.getBoolean(KEY_TAP_NOTIFICATIONS, false),
       bridgeDeviceId = deviceId,
-      hasCompletedTutorial = prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false),
+      hasCompletedSetup = hasCompletedSetup,
+      hasCompletedTutorial = hasCompletedTutorial,
     )
   }
 
@@ -81,7 +87,9 @@ class AppSettingsStore(context: Context) {
       .putBoolean(KEY_PREFER_FOREGROUND, updated.preferForegroundHce)
       .putBoolean(KEY_STOP_ON_LEAVE, updated.stopOnLeaveApp)
       .putString(KEY_PEER_EXCHANGE_MODE, updated.peerExchangeMode.name)
+      .putBoolean(KEY_TAP_NOTIFICATIONS, updated.incomingTagNotificationsEnabled)
       .putString(KEY_BRIDGE_DEVICE_ID, resolvedDeviceId)
+      .putBoolean(KEY_SETUP_COMPLETED, updated.hasCompletedSetup)
       .putBoolean(KEY_TUTORIAL_COMPLETED, updated.hasCompletedTutorial)
       .apply()
     return updated.copy(bridgeDeviceId = resolvedDeviceId)
@@ -109,7 +117,9 @@ class AppSettingsStore(context: Context) {
     private const val KEY_PREFER_FOREGROUND = "prefer_foreground"
     private const val KEY_STOP_ON_LEAVE = "stop_on_leave"
     private const val KEY_PEER_EXCHANGE_MODE = "peer_exchange_mode"
+    private const val KEY_TAP_NOTIFICATIONS = "incoming_tag_notifications_enabled"
     private const val KEY_BRIDGE_DEVICE_ID = "bridge_device_id"
+    private const val KEY_SETUP_COMPLETED = "has_completed_setup"
     private const val KEY_TUTORIAL_COMPLETED = "has_completed_tutorial"
   }
 }
