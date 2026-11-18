@@ -1,6 +1,0 @@
-{
-  "name": "TagLink",
-  "description": "Offline NFC Type 4 Tag HCE card programmer for sharing social profile links and custom URLs.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
