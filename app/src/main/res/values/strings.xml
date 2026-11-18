@@ -165,5 +165,19 @@
     <string name="msg_contact_imported">Contact details loaded</string>
     <string name="msg_contact_import_failed">Could not read details from the selected contact</string>
     <string name="msg_contact_permission_partial">Contacts permission denied. Only basic info could be read.</string>
+    <string name="notif_channel_incoming_name">Incoming NFC Tags</string>
+    <string name="notif_incoming_tag_title">Tag received</string>
+    <string name="notif_incoming_tag_tap">Tap to open</string>
+    <string name="notif_channel_keep_alive_name">Active NFC Tag</string>
+    <string name="notif_keep_alive_title">NFC active · %1$s</string>
+    <string name="notif_keep_alive_body">Running in background so taps stay ready off-screen</string>
+    <string name="settings_section_background">Background &amp; Power</string>
+    <string name="settings_battery_unrestricted_label">Battery usage</string>
+    <string name="settings_battery_status_unrestricted">Unrestricted</string>
+    <string name="settings_battery_status_restricted">Optimized · Tap to set Unrestricted</string>
+    <string name="settings_battery_hint">Choose Unrestricted in Android battery settings so background NFC stays active after closing the app.</string>
+    <string name="settings_notifications_label">Background alerts</string>
+    <string name="settings_notifications_status_on">Allowed</string>
+    <string name="settings_notifications_status_off">Off · Tap to allow</string>
     <string name="action_cancel">Cancel</string>
 </resources>

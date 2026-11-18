@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddBox
+import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Nfc
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -45,7 +47,11 @@ import com.example.widget.WidgetType
 @Composable
 fun SettingsScreen(
   settings: AppSettings,
+  isIgnoringBatteryOptimizations: Boolean,
+  areNotificationsEnabled: Boolean,
   onUpdateSettings: ((AppSettings) -> AppSettings) -> Unit,
+  onOpenBatterySettings: () -> Unit,
+  onRequestBackgroundAlerts: () -> Unit,
   onOpenNfcSettings: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
@@ -270,6 +276,43 @@ fun SettingsScreen(
     }
 
     item {
+      SettingsSectionCard(title = stringResource(R.string.settings_section_background)) {
+        SettingsStatusActionRow(
+          icon = Icons.Outlined.BatteryChargingFull,
+          label = stringResource(R.string.settings_battery_unrestricted_label),
+          statusText =
+            if (isIgnoringBatteryOptimizations) {
+              stringResource(R.string.settings_battery_status_unrestricted)
+            } else {
+              stringResource(R.string.settings_battery_status_restricted)
+            },
+          statusOk = isIgnoringBatteryOptimizations,
+          onClick = onOpenBatterySettings,
+          testTag = "settings_battery_optimization_button",
+        )
+        Text(
+          text = stringResource(R.string.settings_battery_hint),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(thickness = 1.dp, color = extendedColors.border)
+        SettingsStatusActionRow(
+          icon = Icons.Outlined.NotificationsActive,
+          label = stringResource(R.string.settings_notifications_label),
+          statusText =
+            if (areNotificationsEnabled) {
+              stringResource(R.string.settings_notifications_status_on)
+            } else {
+              stringResource(R.string.settings_notifications_status_off)
+            },
+          statusOk = areNotificationsEnabled,
+          onClick = onRequestBackgroundAlerts,
+          testTag = "settings_notifications_button",
+        )
+      }
+    }
+
+    item {
       SettingsSectionCard(title = stringResource(R.string.settings_section_shortcuts)) {
         SettingsActionRow(
           icon = Icons.Outlined.Nfc,
@@ -292,6 +335,47 @@ fun SettingsScreen(
           testTag = "settings_add_qs_tile_button",
         )
       }
+    }
+  }
+}
+
+@Composable
+private fun SettingsStatusActionRow(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  statusText: String,
+  statusOk: Boolean,
+  onClick: () -> Unit,
+  testTag: String,
+) {
+  val extendedColors = LocalTagExtendedColors.current
+  Row(
+    modifier =
+      Modifier.fillMaxWidth()
+        .minimumInteractiveComponentSize()
+        .clickable(onClick = onClick)
+        .padding(vertical = 6.dp)
+        .testTag(testTag),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.size(20.dp),
+    )
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        text = statusText,
+        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+        color = if (statusOk) extendedColors.signalActive else MaterialTheme.colorScheme.error,
+      )
     }
   }
 }

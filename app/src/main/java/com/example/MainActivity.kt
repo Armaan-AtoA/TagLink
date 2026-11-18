@@ -179,6 +179,12 @@ class MainActivity : ComponentActivity() {
           onDuplicateSavedCard = viewModel::duplicateSavedCard,
           onDeleteSavedCard = viewModel::deleteSavedCard,
           onUpdateSettings = viewModel::updateSettings,
+          onOpenBatterySettings = {
+            startActivity(NfcHardwareHelper.createBatteryOptimizationSettingsIntent(this@MainActivity))
+          },
+          onOpenNotificationSettings = {
+            startActivity(NfcHardwareHelper.createNotificationSettingsIntent(this@MainActivity))
+          },
           onOpenNfcSettings = {
             startActivity(NfcHardwareHelper.createNfcSettingsIntent(this@MainActivity))
           },
@@ -191,6 +197,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
+    NfcHardwareHelper.ensureDynamicNdefAidRegistered(this)
     viewModel.refreshState()
     val state = viewModel.uiState.value
     val hasTarget = state.activeNdefBytes.isNotEmpty() || !state.isReadOnly

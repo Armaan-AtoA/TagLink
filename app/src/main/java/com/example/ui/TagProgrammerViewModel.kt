@@ -24,6 +24,7 @@ import com.example.nfc.NdefRecordType
 import com.example.nfc.NdefUriEncoder
 import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
+import com.example.nfc.NfcKeepAliveService
 import com.example.nfc.NfcToggleTileService
 import com.example.nfc.ScannedTagResult
 import com.example.nfc.TagScanError
@@ -170,6 +171,8 @@ data class TagUiState(
   val inputError: String? = null,
   val copyState: CopyTagUiState = CopyTagUiState(),
   val savedCards: List<SavedLinkEntity> = emptyList(),
+  val isIgnoringBatteryOptimizations: Boolean = false,
+  val areNotificationsEnabled: Boolean = false,
   val statusMessage: String? = null,
 ) {
   val isCopyScanning: Boolean
@@ -199,6 +202,8 @@ data class TagUiState(
       inputError == other.inputError &&
       copyState == other.copyState &&
       savedCards == other.savedCards &&
+      isIgnoringBatteryOptimizations == other.isIgnoringBatteryOptimizations &&
+      areNotificationsEnabled == other.areNotificationsEnabled &&
       statusMessage == other.statusMessage
   }
 
@@ -223,6 +228,8 @@ private data class LocalProgrammerState(
   val makeReadOnly: Boolean = true,
   val inputError: String? = null,
   val copyState: CopyTagUiState = CopyTagUiState(),
+  val isIgnoringBatteryOptimizations: Boolean = false,
+  val areNotificationsEnabled: Boolean = false,
   val statusMessage: String? = null,
 )
 
@@ -258,6 +265,8 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           inputError = local.inputError,
           copyState = local.copyState,
           savedCards = saved,
+          isIgnoringBatteryOptimizations = local.isIgnoringBatteryOptimizations,
+          areNotificationsEnabled = local.areNotificationsEnabled,
           statusMessage = local.statusMessage,
         )
       }
@@ -268,10 +277,12 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
       )
 
   private fun createInitialState(): LocalProgrammerState {
+    val app = getApplication<Application>()
     val active = repository.readActiveCard()
     val settings = repository.readSettings()
-    val status = NfcHardwareHelper.getStatus(getApplication())
+    val status = NfcHardwareHelper.getStatus(app)
     val firstRecord = active.records.firstOrNull()
+    NfcKeepAliveService.sync(app)
     return LocalProgrammerState(
       showTutorial = !settings.hasCompletedTutorial,
       tutorialStep = 0,
@@ -285,13 +296,17 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
       form = RecordFormState(),
       cardLabelDraft = "",
       makeReadOnly = settings.defaultReadOnly,
+      isIgnoringBatteryOptimizations = NfcHardwareHelper.isIgnoringBatteryOptimizations(app),
+      areNotificationsEnabled = NfcHardwareHelper.areNotificationsEnabled(app),
     )
   }
 
   fun refreshState() {
-    val status = NfcHardwareHelper.getStatus(getApplication())
+    val app = getApplication<Application>()
+    val status = NfcHardwareHelper.getStatus(app)
     val active = repository.readActiveCard()
     val settings = repository.readSettings()
+    NfcKeepAliveService.sync(app)
     localState.update {
       it.copy(
         settings = settings,
@@ -301,6 +316,8 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         activeNdefBytes = active.ndefMessageBytes,
         isEmulating = active.isEmulating && status == NfcHardwareStatus.READY,
         isReadOnly = active.isReadOnly,
+        isIgnoringBatteryOptimizations = NfcHardwareHelper.isIgnoringBatteryOptimizations(app),
+        areNotificationsEnabled = NfcHardwareHelper.areNotificationsEnabled(app),
       )
     }
   }
@@ -560,6 +577,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         } else {
           written
         }
+      NfcKeepAliveService.sync(app)
       localState.update {
         it.copy(
           nfcStatus = nfcStatus,
@@ -639,6 +657,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         } else {
           saved
         }
+      NfcKeepAliveService.sync(app)
       localState.update {
         it.copy(
           nfcStatus = nfcStatus,
@@ -680,6 +699,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
       } else {
         loaded
       }
+    NfcKeepAliveService.sync(app)
     val notice =
       if (shouldAutoActivate && nfcStatus != NfcHardwareStatus.READY) {
         app.getString(R.string.error_nfc_off)
@@ -727,8 +747,10 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun clearCard() {
-    DynamicSwitchController.clear(getApplication())
+    val app = getApplication<Application>()
+    DynamicSwitchController.clear(app)
     val snapshot = repository.clearActiveCard()
+    NfcKeepAliveService.sync(app)
     localState.update {
       it.copy(
         activeLabel = snapshot.label,
@@ -736,7 +758,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         activeNdefBytes = ByteArray(0),
         isEmulating = false,
         inputError = null,
-        statusMessage = getApplication<Application>().getString(R.string.msg_card_cleared),
+        statusMessage = app.getString(R.string.msg_card_cleared),
       )
     }
   }
@@ -749,6 +771,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     if (!enabled) {
       DynamicSwitchController.clear(app)
       val snapshot = repository.setEmulating(false)
+      NfcKeepAliveService.sync(app)
       localState.update { it.copy(nfcStatus = status, isEmulating = snapshot.isEmulating) }
       return
     }
@@ -756,6 +779,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     if (status != NfcHardwareStatus.READY) {
       DynamicSwitchController.clear(app)
       repository.setEmulating(false)
+      NfcKeepAliveService.sync(app)
       localState.update {
         it.copy(
           nfcStatus = status,
@@ -778,6 +802,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     }
 
     val snapshot = repository.setEmulating(true)
+    NfcKeepAliveService.sync(app)
     localState.update { it.copy(nfcStatus = status, isEmulating = snapshot.isEmulating) }
   }
 
@@ -787,10 +812,12 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun updateSettings(transform: (AppSettings) -> AppSettings) {
+    val app = getApplication<Application>()
     val updated = repository.updateSettings(transform)
     if (updated.peerExchangeMode != PeerExchangeMode.DYNAMIC) {
-      DynamicSwitchController.clear(getApplication())
+      DynamicSwitchController.clear(app)
     }
+    NfcKeepAliveService.sync(app)
     localState.update { it.copy(settings = updated) }
   }
 

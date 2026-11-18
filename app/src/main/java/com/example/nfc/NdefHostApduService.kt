@@ -87,6 +87,7 @@ class NdefHostApduService : HostApduService() {
 
     if (isDynamicMode && snapshot.isEmulating && !sessionTrueP2p && outcome.completedNdefRead) {
       DynamicSwitchController.activateTrueP2pWindow(applicationContext)
+      DynamicSwitchController.triggerRfResetBounce(applicationContext)
     }
 
     if (outcome.completedPeerExchange != null) {

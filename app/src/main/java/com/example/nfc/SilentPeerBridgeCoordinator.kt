@@ -1,8 +1,10 @@
 package com.example.nfc
 
+import android.app.Activity
 import android.content.Context
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import com.example.AppForegroundTracker
 import com.example.data.AppSettingsStore
 import com.example.data.PeerExchangeMode
 import kotlinx.coroutines.CoroutineScope
@@ -17,7 +19,7 @@ object SilentPeerBridgeCoordinator {
   private val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private const val MAX_ISO_DEP_CHUNK = 220
   private const val DEDUPE_WINDOW_MS = 5_500L
-  private const val ISO_DEP_EXCHANGE_TIMEOUT_MS = 450L
+  private const val ISO_DEP_EXCHANGE_TIMEOUT_MS = 1_500L
 
   @Volatile private var lastExecutedKey: String? = null
   @Volatile private var lastExecutedAtMs: Long = 0L
@@ -117,7 +119,12 @@ object SilentPeerBridgeCoordinator {
       lastExecutedAtMs = now
     }
 
-    return NdefActionExecutor.execute(context, canonicalBytes)
+    val canLaunchDirectly = (context is Activity) || AppForegroundTracker.isAppVisible()
+    val launched = NdefActionExecutor.execute(context, canonicalBytes)
+    if (!canLaunchDirectly) {
+      IncomingTagNotifier.showIncomingTagNotification(context, canonicalBytes)
+    }
+    return launched
   }
 
   internal fun resetDedupeForTest() {

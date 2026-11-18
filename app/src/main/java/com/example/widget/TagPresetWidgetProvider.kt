@@ -47,6 +47,7 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
           DynamicSwitchController.clear(context)
           store.setEmulating(false)
         }
+        com.example.nfc.NfcKeepAliveService.sync(context)
         WidgetSyncHelper.refreshAll(context)
         val launchIntent =
           Intent(context, MainActivity::class.java).apply {
@@ -70,6 +71,7 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
           )
           store.setEmulating(true)
         }
+        com.example.nfc.NfcKeepAliveService.sync(context)
         WidgetSyncHelper.refreshAll(context)
       } else if (current.hasPayload || !current.isReadOnly) {
         val nextEmulating = !current.isEmulating
@@ -77,6 +79,7 @@ class TagPresetWidgetProvider : AppWidgetProvider() {
           DynamicSwitchController.clear(context)
         }
         store.setEmulating(nextEmulating)
+        com.example.nfc.NfcKeepAliveService.sync(context)
         WidgetSyncHelper.refreshAll(context)
       } else {
         val launchIntent =

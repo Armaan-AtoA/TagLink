@@ -28,6 +28,7 @@ class NfcToggleTileService : TileService() {
         DynamicSwitchController.clear(applicationContext)
         store.setEmulating(false)
       }
+      NfcKeepAliveService.sync(applicationContext)
       syncTileState()
       WidgetSyncHelper.refreshWidgetsOnly(applicationContext)
       openApp()
@@ -45,6 +46,7 @@ class NfcToggleTileService : TileService() {
       DynamicSwitchController.clear(applicationContext)
     }
     store.setEmulating(nextEmulating)
+    NfcKeepAliveService.sync(applicationContext)
     syncTileState()
     WidgetSyncHelper.refreshWidgetsOnly(applicationContext)
   }

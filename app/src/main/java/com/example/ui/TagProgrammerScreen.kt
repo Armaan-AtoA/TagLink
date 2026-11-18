@@ -3,6 +3,7 @@ package com.example.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.AppSettings
+import com.example.data.PeerExchangeMode
 import com.example.data.SavedLinkEntity
 import com.example.data.SavedTagViewMode
 import com.example.nfc.NfcHardwareStatus
@@ -124,6 +126,8 @@ fun TagProgrammerScreen(
   onDuplicateSavedCard: (SavedLinkEntity) -> Unit,
   onDeleteSavedCard: (Long) -> Unit,
   onUpdateSettings: ((AppSettings) -> AppSettings) -> Unit,
+  onOpenBatterySettings: () -> Unit,
+  onOpenNotificationSettings: () -> Unit,
   onOpenNfcSettings: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
   onConsumeStatusMessage: () -> Unit,
@@ -157,6 +161,12 @@ fun TagProgrammerScreen(
     rememberLauncherForActivityResult(
       contract = ActivityResultContracts.RequestPermission(),
       onResult = { _ -> pickContactLauncher.launch(null) },
+    )
+  var askedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+  val notificationPermissionLauncher =
+    rememberLauncherForActivityResult(
+      contract = ActivityResultContracts.RequestPermission(),
+      onResult = { _ -> Unit },
     )
 
   LaunchedEffect(state.statusMessage) {
@@ -234,7 +244,22 @@ fun TagProgrammerScreen(
           AppScreen.ACTIVATE_TAG -> {
             ActivateTagScreen(
               state = state,
-              onToggleEmulation = onToggleEmulation,
+              onToggleEmulation = { enable ->
+                if (
+                  enable &&
+                    !askedNotificationPermission &&
+                    state.settings.peerExchangeMode != PeerExchangeMode.OFF &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                      context,
+                      Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                  askedNotificationPermission = true
+                  notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                onToggleEmulation(enable)
+              },
               onToggleReadOnly = onToggleReadOnly,
               onClearCard = onClearCard,
               onLoadSavedCard = onLoadSavedCard,
@@ -305,7 +330,23 @@ fun TagProgrammerScreen(
           AppScreen.SETTINGS -> {
             SettingsScreen(
               settings = state.settings,
+              isIgnoringBatteryOptimizations = state.isIgnoringBatteryOptimizations,
+              areNotificationsEnabled = state.areNotificationsEnabled,
               onUpdateSettings = onUpdateSettings,
+              onOpenBatterySettings = onOpenBatterySettings,
+              onRequestBackgroundAlerts = {
+                if (
+                  Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                      context,
+                      Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                  notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                  onOpenNotificationSettings()
+                }
+              },
               onOpenNfcSettings = onOpenNfcSettings,
               onOpenPinWidget = onOpenPinWidget,
               onRequestAddQuickTile = onRequestAddQuickTile,

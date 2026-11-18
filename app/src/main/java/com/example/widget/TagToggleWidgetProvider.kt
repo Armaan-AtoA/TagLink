@@ -35,6 +35,7 @@ class TagToggleWidgetProvider : AppWidgetProvider() {
           DynamicSwitchController.clear(context)
           store.setEmulating(false)
         }
+        com.example.nfc.NfcKeepAliveService.sync(context)
         WidgetSyncHelper.refreshAll(context)
         val launchIntent =
           Intent(context, MainActivity::class.java).apply {
@@ -56,6 +57,7 @@ class TagToggleWidgetProvider : AppWidgetProvider() {
           DynamicSwitchController.clear(context)
         }
         store.setEmulating(nextEmulating)
+        com.example.nfc.NfcKeepAliveService.sync(context)
         WidgetSyncHelper.refreshAll(context)
       }
     }
