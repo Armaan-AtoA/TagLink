@@ -287,6 +287,7 @@ class WidgetAndTileTest {
     composeRule.onNodeWithTag("home_shortcuts_card").assertIsDisplayed()
     composeRule.onNodeWithTag("pin_widget_prompt_button").assertIsDisplayed()
     composeRule.onNodeWithTag("pin_quick_tile_button").assertIsDisplayed()
+    composeRule.onNodeWithTag("pin_qr_quick_tile_button").assertIsDisplayed()
     composeRule.onNodeWithText("1 record per tag").assertDoesNotExist()
 
     // Info button replays interactive tutorial; Skip closes it
@@ -384,6 +385,48 @@ class WidgetAndTileTest {
     val savedId = viewModel.uiState.value.savedCards.first().id
     composeRule.onNodeWithTag("wallet_card_$savedId").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag("wallet_photo_button_$savedId").performScrollTo().assertIsDisplayed()
+
+    // Fallback QR Code when tag is deactivated opens live customizer (without color themes) and supports any color
+    composeRule.onNodeWithTag("activate_list").performScrollToNode(hasTestTag("fallback_qr_button"))
+    composeRule.onNodeWithTag("fallback_qr_button").assertIsDisplayed().performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("fallback_qr_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_matrix_canvas").assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_customizer_panel").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_preset_emerald").assertDoesNotExist()
+    composeRule.onNodeWithTag("qr_fg_swatch_1").performScrollTo().performClick()
+    composeRule.onNodeWithTag("qr_bg_swatch_2").performScrollTo().performClick()
+    composeRule.onNodeWithTag("qr_bg_custom_button").performScrollTo().performClick()
+    composeRule.onNodeWithTag("qr_color_mixer").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_hue_slider").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_shape_rounded").performScrollTo().performClick()
+    composeRule.waitForIdle()
+    assertEquals(0xFFFFFFFFL, viewModel.uiState.value.settings.qrForegroundArgb)
+    assertEquals(0xFF1449B8L, viewModel.uiState.value.settings.qrBackgroundArgb)
+    assertEquals(com.example.qr.QrModuleShape.ROUNDED, viewModel.uiState.value.settings.qrModuleShape)
+    composeRule.onNodeWithTag("qr_dialog_close_button").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("fallback_qr_dialog").assertDoesNotExist()
+
+    // Fallback QR Code when tag is activated keeps customisation OFF and opens scan-only QR
+    simulatedNfcStatus = NfcHardwareStatus.READY
+    composeRule.runOnUiThread {
+      viewModel.refreshState()
+      viewModel.toggleEmulation(true)
+    }
+    composeRule.waitForIdle()
+    assertTrue(viewModel.uiState.value.isEmulating)
+    composeRule.onNodeWithTag("fallback_qr_button").performScrollTo().performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("fallback_qr_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_matrix_canvas").assertIsDisplayed()
+    composeRule.onNodeWithTag("qr_customizer_panel").assertDoesNotExist()
+    composeRule.onNodeWithTag("qr_fg_custom_button").assertDoesNotExist()
+    composeRule.onNodeWithTag("qr_bg_custom_button").assertDoesNotExist()
+    composeRule.onNodeWithTag("qr_dialog_close_button").performClick()
+    composeRule.waitForIdle()
+    simulatedNfcStatus = NfcHardwareStatus.NFC_DISABLED
+    composeRule.runOnUiThread { viewModel.refreshState() }
 
     // Copy Tag screen: shows NFC banner when NFC off and accepts physical scanned NDEF result
     composeRule.onNodeWithTag("back_button").performClick()

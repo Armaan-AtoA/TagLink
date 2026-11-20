@@ -24,6 +24,8 @@
     <string name="shortcut_widget_sub">Pin toggle or card widget</string>
     <string name="shortcut_qs_title">Quick Tile</string>
     <string name="shortcut_qs_sub">Add to Quick Settings</string>
+    <string name="shortcut_qr_tile_title">QR Quick Tile</string>
+    <string name="shortcut_qr_tile_sub">Instant QR popup in Quick Settings</string>
 
     <string name="emulation_active_label">ACTIVE</string>
     <string name="emulation_standby_label">STANDBY</string>
@@ -81,6 +83,12 @@
     <string name="msg_qs_tile_added">Quick Settings tile added</string>
     <string name="msg_qs_tile_already">Quick Settings tile is already in your panel</string>
     <string name="msg_qs_tile_manual">Swipe down Quick Settings twice, tap Edit (pencil), and drag NFC Tag to your panel</string>
+    <string name="qs_qr_tile_label">Tag QR Code</string>
+    <string name="qs_qr_tile_ready">Tap to show QR</string>
+    <string name="qs_qr_tile_no_tag">No tag · Tap to open</string>
+    <string name="msg_qr_tile_added">QR Quick Settings tile added</string>
+    <string name="msg_qr_tile_already">QR Quick Settings tile is already in your panel</string>
+    <string name="msg_qr_tile_manual">Swipe down Quick Settings twice, tap Edit (pencil), and drag Tag QR Code to your panel</string>
 
     <string name="widget_toggle_name">NFC Tag Toggle</string>
     <string name="widget_toggle_description">Tap to activate or stop NFC tag</string>
@@ -116,6 +124,7 @@
     <string name="settings_open_nfc">Android NFC Settings</string>
     <string name="settings_pin_widget">Pin Home Screen Widget</string>
     <string name="settings_add_qs_tile">Add Quick Settings Tile</string>
+    <string name="settings_add_qr_tile">Add QR Quick Settings Tile</string>
 
     <string name="tutorial_skip">Skip</string>
     <string name="tutorial_back">Back</string>
@@ -211,6 +220,31 @@
     <string name="settings_star_github_sub">Armaan-AtoA/TagLink</string>
     <string name="github_repo_url">https://github.com/Armaan-AtoA/TagLink</string>
 
+    <string name="action_fallback_qr">Fallback QR Code</string>
+    <string name="qr_mode_scan_badge">FALLBACK QR</string>
+    <string name="qr_mode_customize_badge">CUSTOMIZE QR</string>
+    <string name="qr_scan_instruction">Point any camera at this code to scan immediately</string>
+    <string name="qr_customize_standby_hint">Customize colors &amp; style while your tag is on standby</string>
+    <string name="qr_foreground_label">Code Color</string>
+    <string name="qr_background_label">Background Color</string>
+    <string name="qr_custom_color">Custom</string>
+    <string name="qr_hue_label">Hue</string>
+    <string name="qr_saturation_label">Saturation</string>
+    <string name="qr_brightness_label">Brightness</string>
+    <string name="cd_custom_fg_color">Pick any custom code color</string>
+    <string name="cd_custom_bg_color">Pick any custom background color</string>
+    <string name="qr_style_label">Shape</string>
+    <string name="qr_style_square">Classic</string>
+    <string name="qr_style_rounded">Rounded</string>
+    <string name="qr_low_contrast_warning">Low contrast colors may be harder for some cameras to scan.</string>
+    <string name="qr_no_tag_title">No tag loaded yet</string>
+    <string name="qr_no_tag_body">Open TagLink and select or save a tag first to display its fallback QR code.</string>
+    <string name="qr_open_app">Open TagLink</string>
+    <string name="cd_fallback_qr_code">Fallback QR code</string>
+    <string name="cd_color_swatch">Color swatch %1$d</string>
+
+    <string name="action_done">Done</string>
+    <string name="action_close">Close</string>
     <string name="action_got_it">Got it</string>
     <string name="action_cancel">Cancel</string>
 </resources>
