@@ -26,6 +26,7 @@ import com.example.nfc.NfcHardwareHelper
 import com.example.nfc.NfcHardwareStatus
 import com.example.nfc.NfcKeepAliveService
 import com.example.nfc.NfcToggleTileService
+import com.example.nfc.QrFallbackTileService
 import com.example.nfc.ScannedTagResult
 import com.example.nfc.TagScanError
 import com.example.nfc.WifiAuthMode
@@ -159,6 +160,8 @@ data class TagUiState(
   val showTutorial: Boolean = false,
   val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
+  val showQrFallbackDialog: Boolean = false,
+  val qrAllowCustomize: Boolean = false,
   val settings: AppSettings = AppSettings(),
   val nfcStatus: NfcHardwareStatus = NfcHardwareStatus.NO_HCE_HARDWARE,
   val activeLabel: String = "",
@@ -191,6 +194,8 @@ data class TagUiState(
       showTutorial == other.showTutorial &&
       tutorialStep == other.tutorialStep &&
       showPinWidgetDialog == other.showPinWidgetDialog &&
+      showQrFallbackDialog == other.showQrFallbackDialog &&
+      qrAllowCustomize == other.qrAllowCustomize &&
       settings == other.settings &&
       nfcStatus == other.nfcStatus &&
       activeLabel == other.activeLabel &&
@@ -219,6 +224,8 @@ private data class LocalProgrammerState(
   val showTutorial: Boolean = false,
   val tutorialStep: Int = 0,
   val showPinWidgetDialog: Boolean = false,
+  val showQrFallbackDialog: Boolean = false,
+  val qrAllowCustomize: Boolean = false,
   val settings: AppSettings = AppSettings(),
   val nfcStatus: NfcHardwareStatus = NfcHardwareStatus.NO_HCE_HARDWARE,
   val activeLabel: String = "",
@@ -256,6 +263,8 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           showTutorial = local.showTutorial,
           tutorialStep = local.tutorialStep,
           showPinWidgetDialog = local.showPinWidgetDialog,
+          showQrFallbackDialog = local.showQrFallbackDialog,
+          qrAllowCustomize = local.qrAllowCustomize,
           settings = local.settings,
           nfcStatus = local.nfcStatus,
           activeLabel = local.activeLabel,
@@ -313,6 +322,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     val active = repository.readActiveCard()
     val settings = repository.readSettings()
     NfcKeepAliveService.sync(app)
+    val emulatingNow = active.isEmulating && status == NfcHardwareStatus.READY
     localState.update {
       it.copy(
         settings = settings,
@@ -320,7 +330,8 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         activeLabel = active.label,
         activeRecord = active.records.firstOrNull(),
         activeNdefBytes = active.ndefMessageBytes,
-        isEmulating = active.isEmulating && status == NfcHardwareStatus.READY,
+        isEmulating = emulatingNow,
+        qrAllowCustomize = if (emulatingNow) false else it.qrAllowCustomize,
         isReadOnly = active.isReadOnly,
         isIgnoringBatteryOptimizations = NfcHardwareHelper.isIgnoringBatteryOptimizations(app),
         areNotificationsEnabled = NfcHardwareHelper.areNotificationsEnabled(app),
@@ -413,6 +424,31 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
   fun dismissPinWidgetDialog() {
     localState.update { it.copy(showPinWidgetDialog = false) }
+  }
+
+  fun openFallbackQr() {
+    val app = getApplication<Application>()
+    val state = localState.value
+    if (state.activeRecord == null) {
+      localState.update {
+        it.copy(statusMessage = app.getString(R.string.error_no_card_loaded))
+      }
+      return
+    }
+    val hasTarget = state.activeNdefBytes.isNotEmpty() || !state.isReadOnly
+    val isActive =
+      (state.nfcStatus == NfcHardwareStatus.READY && state.isEmulating && hasTarget) ||
+        state.isEmulating
+    localState.update {
+      it.copy(
+        showQrFallbackDialog = true,
+        qrAllowCustomize = !isActive,
+      )
+    }
+  }
+
+  fun dismissFallbackQr() {
+    localState.update { it.copy(showQrFallbackDialog = false) }
   }
 
   fun pinWidget(type: WidgetType) {
@@ -597,6 +633,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           written
         }
       NfcKeepAliveService.sync(app)
+      QrFallbackTileService.requestSync(app)
       localState.update {
         it.copy(
           nfcStatus = nfcStatus,
@@ -677,6 +714,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
           saved
         }
       NfcKeepAliveService.sync(app)
+      QrFallbackTileService.requestSync(app)
       localState.update {
         it.copy(
           nfcStatus = nfcStatus,
@@ -719,6 +757,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
         loaded
       }
     NfcKeepAliveService.sync(app)
+    QrFallbackTileService.requestSync(app)
     val notice =
       if (shouldAutoActivate && nfcStatus != NfcHardwareStatus.READY) {
         app.getString(R.string.error_nfc_off)
@@ -770,6 +809,7 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
     DynamicSwitchController.clear(app)
     val snapshot = repository.clearActiveCard()
     NfcKeepAliveService.sync(app)
+    QrFallbackTileService.requestSync(app)
     localState.update {
       it.copy(
         activeLabel = snapshot.label,
@@ -822,7 +862,13 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
 
     val snapshot = repository.setEmulating(true)
     NfcKeepAliveService.sync(app)
-    localState.update { it.copy(nfcStatus = status, isEmulating = snapshot.isEmulating) }
+    localState.update {
+      it.copy(
+        nfcStatus = status,
+        isEmulating = snapshot.isEmulating,
+        qrAllowCustomize = if (snapshot.isEmulating) false else it.qrAllowCustomize,
+      )
+    }
   }
 
   fun toggleReadOnly(readOnly: Boolean) {
@@ -841,35 +887,62 @@ class TagProgrammerViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun requestAddQuickTile() {
+    requestQuickTileInternal(
+      component = ComponentName(getApplication(), NfcToggleTileService::class.java),
+      labelRes = R.string.qs_tile_label,
+      iconRes = R.drawable.ic_qs_nfc_card,
+      addedRes = R.string.msg_qs_tile_added,
+      alreadyRes = R.string.msg_qs_tile_already,
+      manualRes = R.string.msg_qs_tile_manual,
+    )
+  }
+
+  fun requestAddQrQuickTile() {
+    requestQuickTileInternal(
+      component = ComponentName(getApplication(), QrFallbackTileService::class.java),
+      labelRes = R.string.qs_qr_tile_label,
+      iconRes = R.drawable.ic_qs_qr_code,
+      addedRes = R.string.msg_qr_tile_added,
+      alreadyRes = R.string.msg_qr_tile_already,
+      manualRes = R.string.msg_qr_tile_manual,
+    )
+  }
+
+  private fun requestQuickTileInternal(
+    component: ComponentName,
+    labelRes: Int,
+    iconRes: Int,
+    addedRes: Int,
+    alreadyRes: Int,
+    manualRes: Int,
+  ) {
     val app = getApplication<Application>()
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
+      localState.update { it.copy(statusMessage = app.getString(manualRes)) }
       return
     }
     val statusBarManager = app.getSystemService(StatusBarManager::class.java)
     if (statusBarManager == null) {
-      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
+      localState.update { it.copy(statusMessage = app.getString(manualRes)) }
       return
     }
     runCatching {
       statusBarManager.requestAddTileService(
-        ComponentName(app, NfcToggleTileService::class.java),
-        app.getString(R.string.qs_tile_label),
-        Icon.createWithResource(app, R.drawable.ic_qs_nfc_card),
+        component,
+        app.getString(labelRes),
+        Icon.createWithResource(app, iconRes),
         app.mainExecutor,
       ) { resultCode ->
         val msg =
           when (resultCode) {
-            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ->
-              app.getString(R.string.msg_qs_tile_added)
-            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED ->
-              app.getString(R.string.msg_qs_tile_already)
-            else -> app.getString(R.string.msg_qs_tile_manual)
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> app.getString(addedRes)
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> app.getString(alreadyRes)
+            else -> app.getString(manualRes)
           }
         localState.update { it.copy(statusMessage = msg) }
       }
     }.onFailure {
-      localState.update { it.copy(statusMessage = app.getString(R.string.msg_qs_tile_manual)) }
+      localState.update { it.copy(statusMessage = app.getString(manualRes)) }
     }
   }
 

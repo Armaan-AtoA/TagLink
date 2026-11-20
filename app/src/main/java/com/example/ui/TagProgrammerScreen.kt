@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Nfc
+import androidx.compose.material.icons.outlined.QrCode2
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.Widgets
@@ -103,6 +104,8 @@ fun TagProgrammerScreen(
   onOpenPinWidget: () -> Unit,
   onDismissPinWidget: () -> Unit,
   onPinWidget: (WidgetType) -> Unit,
+  onOpenFallbackQr: () -> Unit,
+  onDismissFallbackQr: () -> Unit,
   onSelectMakePreset: (TagPresetKind) -> Unit,
   onSelectSocialPlatform: (SocialPlatform) -> Unit,
   onChangeMakeType: () -> Unit,
@@ -132,6 +135,7 @@ fun TagProgrammerScreen(
   onOpenNfcSettings: () -> Unit,
   onOpenGithub: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onRequestAddQrQuickTile: () -> Unit,
   onRefreshPermissions: () -> Unit,
   onConsumeStatusMessage: () -> Unit,
 ) {
@@ -248,6 +252,7 @@ fun TagProgrammerScreen(
               onOpenCopy = { onNavigate(AppScreen.COPY_TAG) },
               onOpenPinWidget = onOpenPinWidget,
               onRequestAddQuickTile = onRequestAddQuickTile,
+              onRequestAddQrQuickTile = onRequestAddQrQuickTile,
               onOpenNfcSettings = onOpenNfcSettings,
               onReportBounds = { target, rect -> tutorialBounds[target] = rect },
               modifier = contentModifier,
@@ -260,6 +265,7 @@ fun TagProgrammerScreen(
               onToggleEmulation = onToggleEmulation,
               onToggleReadOnly = onToggleReadOnly,
               onClearCard = onClearCard,
+              onOpenFallbackQr = onOpenFallbackQr,
               onLoadSavedCard = onLoadSavedCard,
               onPickCardPhoto = { card ->
                 pendingPhotoCardId = card.id
@@ -361,6 +367,7 @@ fun TagProgrammerScreen(
               onOpenNfcSettings = onOpenNfcSettings,
               onOpenPinWidget = onOpenPinWidget,
               onRequestAddQuickTile = onRequestAddQuickTile,
+              onRequestAddQrQuickTile = onRequestAddQrQuickTile,
               onOpenGithub = onOpenGithub,
               modifier = contentModifier,
             )
@@ -373,6 +380,33 @@ fun TagProgrammerScreen(
       PinWidgetDialog(
         onPinWidget = onPinWidget,
         onDismiss = onDismissPinWidget,
+      )
+    }
+
+    val activeQrRecord = state.activeRecord
+    if (state.showQrFallbackDialog && activeQrRecord != null) {
+      val hasQrTarget = state.activeNdefBytes.isNotEmpty() || !state.isReadOnly
+      val isTagActive =
+        state.nfcStatus == NfcHardwareStatus.READY && state.isEmulating && hasQrTarget
+      val canCustomizeQr = state.qrAllowCustomize && !isTagActive
+      FallbackQrDialog(
+        record = activeQrRecord,
+        label = state.activeLabel,
+        foregroundArgb = state.settings.qrForegroundArgb,
+        backgroundArgb = state.settings.qrBackgroundArgb,
+        moduleShape = state.settings.qrModuleShape,
+        allowCustomize = canCustomizeQr,
+        onSelectColors = { fg, bg ->
+          if (!isTagActive) {
+            onUpdateSettings { it.copy(qrForegroundArgb = fg, qrBackgroundArgb = bg) }
+          }
+        },
+        onSelectShape = { shape ->
+          if (!isTagActive) {
+            onUpdateSettings { it.copy(qrModuleShape = shape) }
+          }
+        },
+        onDismiss = onDismissFallbackQr,
       )
     }
 
@@ -537,6 +571,7 @@ private fun HomeEntryScreen(
   onOpenCopy: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onRequestAddQrQuickTile: () -> Unit,
   onOpenNfcSettings: () -> Unit,
   onReportBounds: (TutorialTarget, Rect) -> Unit,
   modifier: Modifier = Modifier,
@@ -631,6 +666,7 @@ private fun HomeEntryScreen(
       HomeShortcutsCard(
         onOpenPinWidget = onOpenPinWidget,
         onRequestAddQuickTile = onRequestAddQuickTile,
+        onRequestAddQrQuickTile = onRequestAddQrQuickTile,
         modifier =
           Modifier.onGloballyPositioned { coords ->
             onReportBounds(TutorialTarget.SHORTCUTS, coords.boundsInRoot())
@@ -644,6 +680,7 @@ private fun HomeEntryScreen(
 private fun HomeShortcutsCard(
   onOpenPinWidget: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onRequestAddQrQuickTile: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val extendedColors = LocalTagExtendedColors.current
@@ -749,6 +786,46 @@ private fun HomeShortcutsCard(
         }
       }
     }
+
+    Surface(
+      onClick = onRequestAddQrQuickTile,
+      shape = MaterialTheme.shapes.small,
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      border = BorderStroke(1.dp, extendedColors.border),
+      modifier =
+        Modifier.fillMaxWidth()
+          .minimumInteractiveComponentSize()
+          .testTag("pin_qr_quick_tile_button"),
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        Icon(
+          imageVector = Icons.Outlined.QrCode2,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(20.dp),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+          Text(
+            text = stringResource(R.string.shortcut_qr_tile_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+          Text(
+            text = stringResource(R.string.shortcut_qr_tile_sub),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+      }
+    }
   }
 }
 
@@ -838,6 +915,7 @@ private fun ActivateTagScreen(
   onToggleEmulation: (Boolean) -> Unit,
   onToggleReadOnly: (Boolean) -> Unit,
   onClearCard: () -> Unit,
+  onOpenFallbackQr: () -> Unit,
   onLoadSavedCard: (SavedLinkEntity) -> Unit,
   onPickCardPhoto: (SavedLinkEntity) -> Unit,
   onRemoveCardPhoto: (SavedLinkEntity) -> Unit,
@@ -869,6 +947,7 @@ private fun ActivateTagScreen(
         onToggleEmulation = onToggleEmulation,
         onToggleReadOnly = onToggleReadOnly,
         onClearCard = onClearCard,
+        onOpenFallbackQr = onOpenFallbackQr,
         onOpenMakeTag = onOpenMakeTag,
       )
     }
@@ -997,6 +1076,7 @@ private fun VirtualCardPanel(
   onToggleEmulation: (Boolean) -> Unit,
   onToggleReadOnly: (Boolean) -> Unit,
   onClearCard: () -> Unit,
+  onOpenFallbackQr: () -> Unit,
   onOpenMakeTag: () -> Unit,
 ) {
   val extendedColors = LocalTagExtendedColors.current
@@ -1189,6 +1269,32 @@ private fun VirtualCardPanel(
               style = MaterialTheme.typography.bodyMedium,
             )
           }
+        }
+      }
+
+      if (state.activeRecord != null) {
+        OutlinedButton(
+          onClick = onOpenFallbackQr,
+          shape = MaterialTheme.shapes.small,
+          border = BorderStroke(1.dp, extendedColors.border),
+          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+          modifier =
+            Modifier.fillMaxWidth()
+              .height(48.dp)
+              .testTag("fallback_qr_button"),
+        ) {
+          Icon(
+            imageVector = Icons.Outlined.QrCode2,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+          )
+          Spacer(modifier = Modifier.size(8.dp))
+          Text(
+            text = stringResource(R.string.action_fallback_qr),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
         }
       }
     }

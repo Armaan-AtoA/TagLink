@@ -157,6 +157,8 @@ class MainActivity : ComponentActivity() {
           onOpenPinWidget = viewModel::openPinWidgetDialog,
           onDismissPinWidget = viewModel::dismissPinWidgetDialog,
           onPinWidget = viewModel::pinWidget,
+          onOpenFallbackQr = viewModel::openFallbackQr,
+          onDismissFallbackQr = viewModel::dismissFallbackQr,
           onSelectMakePreset = viewModel::selectMakePreset,
           onSelectSocialPlatform = viewModel::selectSocialPlatform,
           onChangeMakeType = viewModel::backToPreviousMakeStep,
@@ -201,6 +203,7 @@ class MainActivity : ComponentActivity() {
             }
           },
           onRequestAddQuickTile = viewModel::requestAddQuickTile,
+          onRequestAddQrQuickTile = viewModel::requestAddQrQuickTile,
           onRefreshPermissions = viewModel::refreshState,
           onConsumeStatusMessage = viewModel::consumeStatusMessage,
         )

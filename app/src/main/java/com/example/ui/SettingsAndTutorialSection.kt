@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Nfc
 import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.QrCode2
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Button
@@ -68,6 +69,7 @@ fun SettingsScreen(
   onOpenNfcSettings: () -> Unit,
   onOpenPinWidget: () -> Unit,
   onRequestAddQuickTile: () -> Unit,
+  onRequestAddQrQuickTile: () -> Unit,
   onOpenGithub: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -375,6 +377,13 @@ fun SettingsScreen(
           label = stringResource(R.string.settings_add_qs_tile),
           onClick = onRequestAddQuickTile,
           testTag = "settings_add_qs_tile_button",
+        )
+        SettingsDivider()
+        SettingsActionRow(
+          icon = Icons.Outlined.QrCode2,
+          label = stringResource(R.string.settings_add_qr_tile),
+          onClick = onRequestAddQrQuickTile,
+          testTag = "settings_add_qr_tile_button",
         )
       }
     }

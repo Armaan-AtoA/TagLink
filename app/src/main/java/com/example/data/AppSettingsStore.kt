@@ -2,6 +2,8 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.qr.QrCodeGenerator
+import com.example.qr.QrModuleShape
 
 enum class ThemeMode(val label: String) {
   SYSTEM("System"),
@@ -30,6 +32,9 @@ data class AppSettings(
   val stopOnLeaveApp: Boolean = false,
   val peerExchangeMode: PeerExchangeMode = PeerExchangeMode.DYNAMIC,
   val incomingTagNotificationsEnabled: Boolean = false,
+  val qrForegroundArgb: Long = QrCodeGenerator.DEFAULT_FOREGROUND_ARGB,
+  val qrBackgroundArgb: Long = QrCodeGenerator.DEFAULT_BACKGROUND_ARGB,
+  val qrModuleShape: QrModuleShape = QrModuleShape.SQUARE,
   val bridgeDeviceId: String = "",
   val hasCompletedSetup: Boolean = false,
   val hasCompletedTutorial: Boolean = false,
@@ -55,6 +60,11 @@ class AppSettingsStore(context: Context) {
     val peerExchangeMode =
       PeerExchangeMode.entries.firstOrNull { it.name == peerModeName }
         ?: PeerExchangeMode.DYNAMIC
+    val qrShapeName =
+      prefs.getString(KEY_QR_MODULE_SHAPE, QrModuleShape.SQUARE.name)
+        ?: QrModuleShape.SQUARE.name
+    val qrModuleShape =
+      QrModuleShape.entries.firstOrNull { it.name == qrShapeName } ?: QrModuleShape.SQUARE
     val deviceId = ensureBridgeDeviceId()
     val hasCompletedTutorial = prefs.getBoolean(KEY_TUTORIAL_COMPLETED, false)
     val hasCompletedSetup = prefs.getBoolean(KEY_SETUP_COMPLETED, hasCompletedTutorial)
@@ -68,6 +78,9 @@ class AppSettingsStore(context: Context) {
       stopOnLeaveApp = prefs.getBoolean(KEY_STOP_ON_LEAVE, false),
       peerExchangeMode = peerExchangeMode,
       incomingTagNotificationsEnabled = prefs.getBoolean(KEY_TAP_NOTIFICATIONS, false),
+      qrForegroundArgb = prefs.getLong(KEY_QR_FOREGROUND_ARGB, QrCodeGenerator.DEFAULT_FOREGROUND_ARGB),
+      qrBackgroundArgb = prefs.getLong(KEY_QR_BACKGROUND_ARGB, QrCodeGenerator.DEFAULT_BACKGROUND_ARGB),
+      qrModuleShape = qrModuleShape,
       bridgeDeviceId = deviceId,
       hasCompletedSetup = hasCompletedSetup,
       hasCompletedTutorial = hasCompletedTutorial,
@@ -88,6 +101,9 @@ class AppSettingsStore(context: Context) {
       .putBoolean(KEY_STOP_ON_LEAVE, updated.stopOnLeaveApp)
       .putString(KEY_PEER_EXCHANGE_MODE, updated.peerExchangeMode.name)
       .putBoolean(KEY_TAP_NOTIFICATIONS, updated.incomingTagNotificationsEnabled)
+      .putLong(KEY_QR_FOREGROUND_ARGB, updated.qrForegroundArgb)
+      .putLong(KEY_QR_BACKGROUND_ARGB, updated.qrBackgroundArgb)
+      .putString(KEY_QR_MODULE_SHAPE, updated.qrModuleShape.name)
       .putString(KEY_BRIDGE_DEVICE_ID, resolvedDeviceId)
       .putBoolean(KEY_SETUP_COMPLETED, updated.hasCompletedSetup)
       .putBoolean(KEY_TUTORIAL_COMPLETED, updated.hasCompletedTutorial)
@@ -118,6 +134,9 @@ class AppSettingsStore(context: Context) {
     private const val KEY_STOP_ON_LEAVE = "stop_on_leave"
     private const val KEY_PEER_EXCHANGE_MODE = "peer_exchange_mode"
     private const val KEY_TAP_NOTIFICATIONS = "incoming_tag_notifications_enabled"
+    private const val KEY_QR_FOREGROUND_ARGB = "qr_foreground_argb"
+    private const val KEY_QR_BACKGROUND_ARGB = "qr_background_argb"
+    private const val KEY_QR_MODULE_SHAPE = "qr_module_shape"
     private const val KEY_BRIDGE_DEVICE_ID = "bridge_device_id"
     private const val KEY_SETUP_COMPLETED = "has_completed_setup"
     private const val KEY_TUTORIAL_COMPLETED = "has_completed_tutorial"
